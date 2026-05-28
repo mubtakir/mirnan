@@ -140,8 +140,81 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         selectedLetterHeader.textContent = `معايرة الحرف: ${letter}`;
         renderSliders(letter);
+        fetchRichLetterInfo(letter);
         saveCalibrationBtn.disabled = true;
         isDirty = false;
+    }
+
+    async function fetchRichLetterInfo(letter) {
+        const card = document.getElementById('rich-letter-card');
+        try {
+            const response = await fetch(`/api/letters/rich/${encodeURIComponent(letter)}`);
+            if (!response.ok) {
+                card.style.display = 'none';
+                return;
+            }
+            const data = await response.json();
+            renderRichLetterCard(data);
+            card.style.display = 'block';
+        } catch (error) {
+            console.error("Failed to fetch rich letter info:", error);
+            card.style.display = 'none';
+        }
+    }
+
+    function renderRichLetterCard(data) {
+        document.getElementById('meaning-core').textContent = data.core_meaning || '?';
+        
+        const branchesDiv = document.getElementById('meaning-branches');
+        branchesDiv.innerHTML = '';
+        if (data.branches && data.branches.length > 0) {
+            data.branches.forEach(b => {
+                const tag = document.createElement('span');
+                tag.className = 'branch-tag';
+                tag.textContent = b;
+                branchesDiv.appendChild(tag);
+            });
+        }
+
+        document.getElementById('meaning-opposite').innerHTML = 
+            `<span class="pair-label">ضد</span><span>${data.opposite || '?'}</span>`;
+        document.getElementById('meaning-standard').innerHTML = 
+            `<span class="pair-label">ميزان</span><span>${data.standard_of || '?'}</span>`;
+
+        document.getElementById('phys-omega').textContent = data.omega_0 || '?';
+        document.getElementById('phys-operator').textContent = data.operator || '?';
+
+        const interpDiv = document.getElementById('vector-interp-section');
+        interpDiv.innerHTML = '';
+        if (data.vector_interpretation) {
+            const interp = data.vector_interpretation;
+            if (interp.dominant && interp.dominant.length > 0) {
+                const domDiv = document.createElement('div');
+                domDiv.className = 'interp-block dominant';
+                domDiv.innerHTML = '<span class="interp-label">ينشط</span>';
+                interp.dominant.forEach(([name, desc]) => {
+                    const item = document.createElement('span');
+                    item.className = 'interp-item';
+                    item.textContent = `${name}`;
+                    item.title = desc;
+                    domDiv.appendChild(item);
+                });
+                interpDiv.appendChild(domDiv);
+            }
+            if (interp.opposite && interp.opposite.length > 0) {
+                const oppDiv = document.createElement('div');
+                oppDiv.className = 'interp-block opposite';
+                oppDiv.innerHTML = '<span class="interp-label">ينخفض</span>';
+                interp.opposite.forEach(([name, desc]) => {
+                    const item = document.createElement('span');
+                    item.className = 'interp-item';
+                    item.textContent = `${name}`;
+                    item.title = desc;
+                    oppDiv.appendChild(item);
+                });
+                interpDiv.appendChild(oppDiv);
+            }
+        }
     }
 
     function renderSliders(letter) {

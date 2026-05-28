@@ -7,7 +7,7 @@ compute_word_mass, compute_word_energy.
 """
 import re
 import numpy as np
-from src.physics.constants import PLANCK_H, LIGHT_SPEED_C, PHASE_DIM, ROOT_DIMS, EXTRA_DIMS, SYNTAX_DIMS, SEMANTIC_DIMS
+from src.physics.constants import PLANCK_H, LIGHT_SPEED_C, PHASE_DIM, ROOT_DIMS, EXTRA_DIMS, SYNTAX_DIMS, SEMANTIC_DIMS, POSITION_WEIGHTS
 from src.physics.letter_db import LetterDB
 from src.semantics.arabic_semantics import CharacterSemanticEmbedding
 
@@ -69,7 +69,15 @@ def compute_word_mass(word: str) -> float:
     return compute_word_energy(word) / (LIGHT_SPEED_C ** 2)
 
 
-def compute_word_phase_vector(word: str, widen=1.0, pair_weight=0.0) -> np.ndarray:
+def compute_word_phase_vector(word: str, widen=1.0, pair_weight=0.0, weighted=False) -> np.ndarray:
+    """حساب المتجه الطوري 22D للكلمة.
+
+    Args:
+        word: الكلمة المدخلة
+        widen: عامل توسيع التباين (> 1.0 يزيد التباين)
+        pair_weight: وزن الأزواج المتجاورة لكسر تناظر التباديل (0.0 = معطل)
+        weighted: استخدام الترجيح الموضعي (فاء ×3.5، عين ×2.5، لام ×2.0 ...)
+    """
     word = _resolve_symbol(word)
     db = get_letter_db()
     letters = _normalize_letters(word)
@@ -78,26 +86,29 @@ def compute_word_phase_vector(word: str, widen=1.0, pair_weight=0.0) -> np.ndarr
         return np.zeros(PHASE_DIM)
     n = len(vectors)
     if n == 1:
-        weighted = vectors[0]
+        result = vectors[0].copy()
+    elif weighted and n > 2:
+        weights = np.array([POSITION_WEIGHTS[i] if i < len(POSITION_WEIGHTS) else POSITION_WEIGHTS[-1]
+                           for i in range(n)])
+        vecs = np.array(vectors)
+        result = np.sum(vecs * weights[:, np.newaxis], axis=0) / np.sum(weights)
     else:
-        # Simple arithmetic average to remove spelling position bias
-        weighted = np.mean(vectors, axis=0)
-    
+        result = np.mean(vectors, axis=0)
+
     if pair_weight > 0 and n > 1:
-        pair_sum = np.zeros_like(weighted)
+        pair_sum = np.zeros(PHASE_DIM)
         for i in range(n - 1):
             pair_sum += vectors[i] * vectors[i + 1]
         pair_sum /= (n - 1)
-        weighted = weighted + pair_weight * pair_sum
-        
-    nrm = np.linalg.norm(weighted)
+        result = result + pair_weight * pair_sum
+
+    nrm = np.linalg.norm(result)
     if nrm > 1e-10:
-        weighted = weighted / nrm
-        
+        result = result / nrm
+
     if widen > 1.0:
-        weighted = weighted / (np.linalg.norm(weighted) + 1e-10)
-        weighted = np.sign(weighted) * np.abs(weighted) ** widen
-    return weighted
+        result = np.sign(result) * np.abs(result) ** widen
+    return result
 
 
 def _compute_extra_dims(word: str) -> np.ndarray:
@@ -256,9 +267,9 @@ def _compute_root_dims(word: str) -> np.ndarray:
     return flat
 
 
-def compute_extended_phase_vector(word: str, widen=1.0, vocab=None, K=None, morpho=None) -> np.ndarray:
+def compute_extended_phase_vector(word: str, widen=1.0, vocab=None, K=None, morpho=None, weighted=False) -> np.ndarray:
     resolved_word = _resolve_symbol(word)
-    base = compute_word_phase_vector(resolved_word, widen=widen)
+    base = compute_word_phase_vector(resolved_word, widen=widen, weighted=weighted)
     root = _compute_root_dims(resolved_word)
     extra = _compute_extra_dims(resolved_word)
     vec = np.concatenate([base, root, extra])

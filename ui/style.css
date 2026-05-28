@@ -977,3 +977,162 @@ body {
 .benchmark-tag span.delete-tag:hover {
     color: #ef4444;
 }
+
+/* ==========================================================================
+   Rich Letter Card (معاني الحرف + تفسير المتجهات)
+   ========================================================================== */
+
+.rich-letter-card {
+    background: rgba(15, 23, 42, 0.5);
+    border: 1px solid var(--border-glass);
+    border-radius: 14px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    animation: fadeIn 0.3s ease-out;
+}
+
+/* Meaning Section */
+.meaning-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.meaning-core {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--secondary);
+    text-align: center;
+    background: rgba(14, 165, 233, 0.1);
+    border-radius: 10px;
+    padding: 6px 0;
+}
+
+.meaning-branches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    justify-content: center;
+}
+
+.branch-tag {
+    background: rgba(139, 92, 246, 0.15);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    border-radius: 8px;
+    padding: 3px 10px;
+    font-size: 0.78rem;
+    color: var(--text-light);
+    white-space: nowrap;
+}
+
+.meaning-pair {
+    display: flex;
+    gap: 8px;
+}
+
+.meaning-opposite, .meaning-standard {
+    flex: 1;
+    background: rgba(15, 23, 42, 0.4);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+.meaning-opposite {
+    border-left: 2px solid #ef4444;
+}
+.meaning-standard {
+    border-left: 2px solid #10b981;
+}
+
+.pair-label {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+/* Physics Section */
+.physics-section {
+    display: flex;
+    gap: 12px;
+}
+
+.physics-row {
+    flex: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(15, 23, 42, 0.4);
+    border-radius: 8px;
+    padding: 6px 10px;
+}
+
+.physics-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.physics-value {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--secondary);
+}
+
+/* Vector Interpretation Section */
+.vector-interp-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.interp-block {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+    padding: 6px 8px;
+    border-radius: 8px;
+}
+
+.interp-block.dominant {
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.interp-block.opposite {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.interp-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    min-width: 32px;
+}
+
+.interp-block.dominant .interp-label {
+    color: #10b981;
+}
+
+.interp-block.opposite .interp-label {
+    color: #ef4444;
+}
+
+.interp-item {
+    background: rgba(15, 23, 42, 0.5);
+    border-radius: 6px;
+    padding: 2px 7px;
+    font-size: 0.7rem;
+    color: var(--text-light);
+    white-space: nowrap;
+    cursor: default;
+}

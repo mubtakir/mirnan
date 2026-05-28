@@ -55,5 +55,9 @@ class LetterDB:
         v = self.get_vector(letter)
         return 0.5 + 2.0 * np.linalg.norm(v) / np.sqrt(self.dim)
 
+    def get_raw_norm(self, letter):
+        """إرجاع القيمة الأصلية (المقدار) لمتجه الحرف قبل أي تطبيع."""
+        return float(np.linalg.norm(self.get_vector(letter)))
+
     def has(self, letter):
         return letter in self.data

@@ -233,6 +233,16 @@ async def get_field(target: str, vocab_type: str = "full", use_hebbian: bool = F
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/letters/rich/{letter}")
+async def get_letter_rich(letter: str):
+    from src.physics.vector_interpreter import interpret_letter
+    try:
+        result = interpret_letter(letter)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/meters")
 async def list_meters():
     """إرجاع قائمة البحور الشعرية المدعومة."""
