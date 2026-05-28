@@ -1,0 +1,151 @@
+# ─── إعدادات مرنان — النموذج الفيزيائي ───
+# كل المعاملات هنا تتحكم في سلوك المحرك الفيزيائي أثناء التوليد والتدريب.
+# يمكن تعديلها دون تغيير الكود.
+
+# ═══ معامل ألفا — خلط السياق في المتجه الطوري ═══
+# كلما زاد alpha، زاد تأثير السياق المحيط على معنى الكلمة.
+# القيمة الأصلية: 0.3 — نرفعها لـ 0.5 لدقة أعلى.
+alpha: 0.5
+
+# ═══ DCCF — حقل الاقتران الديناميكي السياقي (بديل self-attention) ═══
+dccf:
+  decay_rate: 0.5          # سرعة اضمحلال تأثير الكلمات البعيدة
+  mass_threshold: 0.3       # عتبة التوافق الطوري الأدنى
+
+# ═══ PotentialCascade — طبقة الهوي التراكمي ═══
+cascade:
+  enabled: false            # تفعيل/تعطيل الهوي التراكمي
+  lambda_cascade: 3.0       # شدة طبقة الهوي
+  gamma: 2.0                # أس اضمحلال المسافة (2.0 ≈ جاذبية)
+  delta: 0.3                # ثابت تجنب التفرد
+  phase_lock_threshold: 0.65
+  repulsion_strength: 2.5
+  friction_decay: 0.3
+
+# ═══ PhaseReinforcement — التعزيز الطوري الذاتي ═══
+phase_reinforcement:
+  learning_rate: 0.05       # سرعة التعلم الطوري
+  decay: 0.01               # اضمحلال التعزيز
+
+# ═══ PromptField — تعديل الطور بالأمر ═══
+prompt_field:
+  decay_rate: 0.1
+  strength: 1.0
+
+# ═══ EntropyGate — بوابة الإنتروبيا ═══
+entropy:
+  S_crit: 1.0               # العتبة الحرجة للإنتروبيا
+
+# ═══ معاملات التوليد ═══
+generation:
+  beam_width: 3
+  top_k: 250
+  beta: 2.0                 # ثابت بولتزمان للتنشيط الطوري
+  seed: 42
+  relaxation_enabled: false   # تفعيل توليد الاسترخاء الرنيني
+  relaxation_passes: 3       # عدد ممرات الاسترخاء
+
+# ═══ معايرة الرنين — ضبط ذاتي للأوزان ═══
+calibration:
+  lr: 0.02                   # معدل تعلم المعايرة
+  min_samples: 50            # الحد الأدنى لعينات التدريب
+  max_iterations: 10         # أقصى عدد جولات
+  convergence: 0.001          # عتبة التقارب
+
+# ═══ تطور المتجهات الطورية — تنظيم ذاتي ═══
+phase_evolution:
+  lr_cooc: 0.01              # معدل تعلم المزامنة الهيبيانية
+  lr_contrast: 0.005         # معدل تعلم التباين
+  lr_spectral: 0.008         # معدل تعلم الإزاحة الطيفية
+  min_cooc: 3                # الحد الأدنى للتشارك
+  max_shift: 0.1             # أقصى إزاحة للمتجه
+
+# ═══ مشهد القصد — آبار جهد محتمل ═══
+intent_landscape:
+  adaptation_rate: 0.01      # معدل تكييف الآبار
+
+# ═══ أثر التفاعل — حقل مستمر ═══
+interaction_trace:
+  decay_rate: 0.95          # معدل اضمحلال الحقل
+  max_attractors: 50         # أقصى عدد مناطق الجذب
+  learning_rate: 0.05       # معدل تعلم الحقل
+
+# ═══ الذاكرة الهرمية — ضغط السياق ═══
+hierarchical_memory:
+  word_capacity: 100         # سعة مستوى الكلمة
+  phrase_capacity: 40        # سعة مستوى العبارة
+  paragraph_capacity: 15     # سعة مستوى الفقرة
+  conversation_capacity: 5   # سعة مستوى المحادثة
+
+# ═══ أوزان التسجيل — تتحكم في مساهمة كل مكوّن فيزيائي ═══
+# هذه الأوزان الخام (raw weights) تُطبَّع تلقائياً بحيث مجموعها ≈ 0.95
+scoring_weights:
+  align: 1.0                # التوافق الطوري
+  prompt_align: 2.5         # التوافق مع الأمر
+  diversity: 0.5            # التنوع
+  syntax: 5.0               # النحو
+  resonance_gate: 4.0       # بوابة الرنين
+  repulsion: 0.05           # التنافر
+  symbolic: 0.40            # القواعد الرمزية
+  morpho: 0.35              # الصرف
+  morpho_trans: 0.50        # انتقالات صرفية
+  sentence: 1.0             # بنية الجملة
+  pos_alt: 1.0              # تناوب أقسام الكلام
+  irab: 0.30                # الإعراب
+  syntax_gate: 1.50         # بوابة النحو
+  syntax_phase: 2.00        # الطور النحوي
+  phil_semantic: 1.50       # الدلالة الفلسفية
+  root_align: 0.80          # توافق الجذر
+  ram_plan: 1.00            # ذاكرة الجذب
+  gravity: 1.50             # الجاذبية الدلالية
+  pragmatic: 1.50           # البراغماتية
+  weight_resonance: 1.20    # رنين الأوزان الصرفية
+  poetic: 3.50              # الشعرية
+  rhyme: 5.00               # القافية
+  spectral: 1.80            # الطيفي
+  thermo: 1.50              # الحراري
+  dialogue_gravity: 2.00    # جاذبية الحوار
+  dialogue_spectral: 1.50   # طيف الحوار
+  intent_align: 3.00        # توافق القصد
+  associative_plan: 3.50    # الخطة الترابطية
+  entity_align: 2.00        # توافق الكيانات
+  plan_fidelity: 4.00       # إخلاص الخطة
+  sentiment: 1.50           # المشاعر
+  anchor_affinity: 2.00     # ألفة المرساة
+  semantic_density: 2.50    # الكثافة الدلالية
+  novelty: 0.30             # الجدّة
+  relational_resonance: 3.00  # الرنين العلائقي
+  context_wave_filter: 2.00   # مرشح الموجة السياقية
+  eng_morpho: 0.80          # صرف إنجليزي
+  eng_morpho_trans: 0.60    # انتقالات صرفية إنجليزية
+  eng_grammar: 1.00         # نحو إنجليزي
+  eng_agreement: 0.50       # تطابق إنجليزي
+  eng_stem_align: 0.60      # توافق الجذع الإنجليزي
+  global_resonance: 2.00    # الرنين الشامل
+  phase_opposition: 1.50    # التعارض الطوري
+  syn: 2.00                 # K_syn
+  sem: 1.50                 # K_sem
+  conc: 1.00                # K_conc
+  causal: 2.00              # السببية
+  resonant_chain: 3.00      # السلسلة الرنينية
+  dccf: 2.00                # DCCF
+  ppm: 1.50                 # تعديل الطور
+  amfs: 1.50                # التحول التكيفي
+  cascade: 1.50             # الهوي التراكمي
+  dialogue: 3.00            # الحوار
+  contextual_spectra: 10.00 # الأطياف السياقية
+  trajectory: 1.50           # مسار الطور (معالم التوليد)
+  hierarchical: 1.20         # الذاكرة الهرمية
+  intent_landscape: 1.50     # مشهد القصد
+  trace: 0.50               # أثر التفاعل
+  relational: 1.00           # K علاقية
+  architect: 3.00             # بناء معماري للرد
+
+# ═══ التدريب — بناء مصفوفات K ═══
+training:
+  window_sem: 5              # نافذة K_sem
+  window_syn: 2              # نافذة K_syn
+  window_dial: 2             # نافذة K_dialogue
+  particle_weight: 0.15      # وزن الحروف النحوية في K
+  spectral_half_window: 7    # نصف نافذة الذاكرة الطيفية
+  causal_window: 5           # نافذة السببية

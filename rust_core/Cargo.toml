@@ -1,0 +1,14 @@
+[package]
+name = "mirnan_core"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "mirnan_core"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = "0.23"
+rustfft = "6.2"
+ndarray = "0.16"
+num-complex = "0.4"

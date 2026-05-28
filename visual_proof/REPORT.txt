@@ -1,0 +1,34 @@
+
+╔══ mirnan V3.0 — VISUAL PROOF ═══════════════════╗
+║                                                  ║
+║  Training: 9521 words, 202439 couplings, 4.90s
+║  Phase dims: 22 base + 6 extra = 28 total
+║  Beam width: 2, Top-K: 200
+║  RAM attractors: 1
+║                                                  ║
+║  Phase discrimination:                           ║
+║    mean cos(φ_i, φ_j): 0.7666
+║    range: [-0.0968, 0.9968]
+║    window: 1.0936
+║                                                  ║
+║  Generation speed:                               ║
+║    avg: 0.3198s
+║    range: [0.1108, 0.7207]s
+║                                                  ║
+║  File output: visual_proof/01_phase_space.png
+║               visual_proof/02_cos_histogram.png
+║               visual_proof/03_trajectories.png
+║               visual_proof/04_cos_alignment.png
+║               visual_proof/05_energy_entropy.png
+║               visual_proof/06_ram_attractors.png
+║                                                  ║
+║  Key claim:                                      ║
+║  This is not an LLM. Every generated word is     ║
+║  the result of a deterministic phase resonance   ║
+║  computation, fully traceable through 9 scoring  ║
+║  terms. No neural networks, no backpropagation,  ║
+║  no GPUs. The phase space shows meaningful       ║
+║  structure derived purely from Arabic letter     ║
+║  physics.                                        ║
+║                                                  ║
+╚══════════════════════════════════════════════════╝

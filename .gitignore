@@ -1,0 +1,50 @@
+__pycache__/
+.pytest_cache/
+*.pyc
+*.pyo
+
+# ملفات debug
+debug_*
+debug_entropy.txt
+
+# ملفات النموذج الضخمة (تُنشأ عبر train.py)
+model/K_sem.npz
+model/K_syn.npz
+model/K_dial.npz
+model/K_relational.npz
+model/contextual_spectra.npy
+model/dialogue_spectra.npy
+model/evolved_pv.npy
+model/syntax.py
+model/vocab.py
+model/__init__.py
+
+# ملفات البيانات الضخمة (تُنشأ عبر train.py)
+data/gss.npz
+data/gss_dict.npy
+data/gss_ground.npy
+data/spectral_gss.npz
+data/spectral_gss_dict.npy
+data/spectral_gss_ground.npy
+data/causal_K.npz
+data/__pycache__/
+
+# قاعدة البيانات العربية الكبيرة
+arabic_tools/arramooz/arramooz.db
+
+# ملفات مؤقتة وإخراج
+*.log
+*.bak
+*.png
+*.jpg
+ram_state.json
+resp.json
+resp_final.json
+uvicorn_out.txt
+uvicorn_err.txt
+tests_output.log
+tests_stdout.log
+tests_stderr.log
+test_output_hard.txt
+extracted_generator.py
+debug_entropy.txt

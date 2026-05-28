@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv
+env/
+venv/
+
+# IDEs
+.vscode/
+.idea/
+
+# Raqeem Specific
+data/processed/
+logs/*.log
+temp/
+legacy/

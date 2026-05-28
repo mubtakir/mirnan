@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mirnan V7 | Physics Orchestrator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="background-waves">
+        <div class="wave wave1"></div>
+        <div class="wave wave2"></div>
+        <div class="wave wave3"></div>
+    </div>
+
+    <div class="app-container">
+        <header class="app-header">
+            <div class="logo-container">
+                <i class="fa-solid fa-atom quantum-icon"></i>
+                <div class="logo-text">
+                    <h1>مرنان <span>V7</span></h1>
+                    <p>Physics Orchestrator — DCCF · PPM · AMFS</p>
+                </div>
+            </div>
+            <div class="controls">
+                <div class="select-wrapper">
+                    <select id="mode-select" aria-label="Generation Mode">
+                        <option value="auto" selected>Auto (ذكي)</option>
+                        <option value="dialogue">Dialogue (حوار)</option>
+                        <option value="wave">Wave (أسرع)</option>
+                        <option value="standard">Standard</option>
+                        <option value="quantum">Quantum Superposition</option>
+                        <option value="multiverse">Multiverse</option>
+                        <option value="poetic">Poetic (شعر)</option>
+                        <option value="code">Code (Python)</option>
+                        <option value="attract">Field (حقل الجذب والتنافر)</option>
+                    </select>
+                </div>
+                <div class="physics-knobs">
+                    <div class="knob">
+                        <label for="beta-slider">β</label>
+                        <input type="range" id="beta-slider" min="0.1" max="10" step="0.1" value="2.0">
+                        <span id="beta-value">2.0</span>
+                    </div>
+                    <div class="knob">
+                        <label for="kB-slider">k_B</label>
+                        <input type="range" id="kB-slider" min="0.1" max="10" step="0.1" value="1.0">
+                        <span id="kB-value">1.0</span>
+                    </div>
+                    <div class="knob toggle-knob">
+                        <label for="cascade-toggle">CASCADE</label>
+                        <label class="switch">
+                            <input type="checkbox" id="cascade-toggle">
+                            <span class="slider round"></span>
+                        </label>
+                        <input type="range" id="cascade-strength-slider" min="1.0" max="5.0" step="0.1" value="3.0" disabled>
+                        <span id="cascade-strength-value">3.0</span>
+                    </div>
+                    <div class="knob toggle-knob">
+                        <label for="dialogue-toggle">DIALOGUE</label>
+                        <label class="switch">
+                            <input type="checkbox" id="dialogue-toggle">
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="workspace-layout">
+            <main class="chat-container" id="chat-container">
+                <div class="message system-message">
+                    <div class="message-content">
+                        <p>مرحباً بك في <strong>مرنان V7</strong>. النظام يعتمد على الفيزياء الطورية — DCCF، PPM، AMFS، 16 بحراً عربياً، وتعزيز طوري ذاتي. جرّب تفعيل <strong>CASCADE</strong> للهوي الحتمي بدون softmax. أدخل نصاً للبدء.</p>
+                    </div>
+                </div>
+            </main>
+
+            <div class="field-results-container" id="field-results-container" style="display: none;">
+                <div class="field-controls">
+                    <div class="control-group">
+                        <label for="vocab-type-select">معجم البحث:</label>
+                        <select id="vocab-type-select">
+                            <option value="benchmark" selected>معجم المعايرة المصغر</option>
+                            <option value="full">المعجم الكامل</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label class="switch-label">
+                            <input type="checkbox" id="hebbian-boost-toggle">
+                            تفعيل التعزيز الدلالي (Hebbian)
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="field-columns">
+                    <div class="results-column attracted-column">
+                        <h3><i class="fa-solid fa-circle-check"></i> الكلمات المنجذبة (توافق طوري)</h3>
+                        <div class="words-list" id="attracted-words-list">
+                            <!-- سيتم ملؤها ديناميكياً -->
+                        </div>
+                    </div>
+                    <div class="results-column repelled-column">
+                        <h3><i class="fa-solid fa-circle-xmark"></i> الكلمات المتنافرة (تنافر طوري)</h3>
+                        <div class="words-list" id="repelled-words-list">
+                            <!-- سيتم ملؤها ديناميكياً -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <aside class="calibration-sidebar" id="calibration-sidebar" style="display: none;">
+                <div class="sidebar-section">
+                    <h3><i class="fa-solid fa-sliders"></i> معايرة أبعاد الحروف</h3>
+                    
+                    <!-- أزرار اختيار الحرف -->
+                    <div class="letter-grid" id="letter-grid">
+                        <!-- سيتم ملؤها ديناميكياً بالحروف العربية -->
+                    </div>
+                    
+                    <div class="selected-letter-header" id="selected-letter-header">
+                        اختر حرفاً للمعايرة...
+                    </div>
+                    
+                    <!-- حاوية المنزلقات -->
+                    <div class="sliders-container" id="sliders-container">
+                        <!-- سيتم ملؤها ديناميكياً بـ 22 منزلقاً -->
+                    </div>
+                    
+                    <div class="sidebar-actions">
+                        <button class="action-btn save-btn" id="save-calibration-btn" disabled>
+                            <i class="fa-solid fa-floppy-disk"></i> حفظ المعايرة
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="sidebar-section">
+                    <h3><i class="fa-solid fa-book"></i> معجم المعايرة المصغر</h3>
+                    <div class="benchmark-manager">
+                        <div class="add-word-row">
+                            <input type="text" id="new-benchmark-word" placeholder="أدخل كلمة جديدة...">
+                            <button type="button" id="add-benchmark-word-btn" class="mini-btn"><i class="fa-solid fa-plus"></i></button>
+                        </div>
+                        <div class="benchmark-words-list" id="benchmark-words-list">
+                            <!-- سيتم ملؤها ديناميكياً بالكلمات -->
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+
+        <div class="typing-indicator" id="typing-indicator" style="display: none;">
+            <span>يتفاعل فيزيائياً</span>
+            <div class="dots">
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+            </div>
+        </div>
+
+        <footer class="input-area">
+            <form id="chat-form">
+                <div class="input-row">
+                    <input type="text" id="prompt-input" placeholder="اكتب رسالتك هنا..." autocomplete="off" required>
+                    <button type="submit" id="send-btn" aria-label="Send">
+                        <i class="fa-solid fa-paper-plane"></i>
+                    </button>
+                </div>
+                <div class="input-options" id="poetic-options" style="display:none;">
+                    <select id="meter-select">
+                        <option value="kamil">كامل</option>
+                        <option value="tawil">طويل</option>
+                        <option value="baseet">بسيط</option>
+                        <option value="wafir">وافر</option>
+                        <option value="rajaz">رجز</option>
+                        <option value="ramal">رمل</option>
+                        <option value="saree">سريع</option>
+                        <option value="khafeef">خفيف</option>
+                        <option value="motakarib">متقارب</option>
+                        <option value="motadarak">متدارك</option>
+                        <option value="hazaj">هزج</option>
+                        <option value="madeed">مديد</option>
+                        <option value="monsareh">منسرح</option>
+                        <option value="modare">مضارع</option>
+                        <option value="moqtadab">مقتضب</option>
+                        <option value="mojtath">مجتث</option>
+                    </select>
+                    <input type="text" id="rhyme-input" placeholder="حرف القافية" maxlength="2">
+                </div>
+            </form>
+        </footer>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>

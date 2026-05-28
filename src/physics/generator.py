@@ -1,0 +1,1896 @@
+"""محرك التوليد في مرنان — Quantum Phase-Symbolic Resonance Generator.
+
+يدعم 4 أنماط توليد:
+- standard: بحث شعاعي كلاسيكي
+- quantum: تراكب كمومي مع انهيار موجة عبر EntropyGate
+- multiverse: أكوان متوازية — أبطأ لكن أغنى
+- poetic: توليد شعري مع وزن وقافية
+
+V5.1 الإضافات:
+- WeightResonanceEngine: 14 وزناً صرفياً في معادلة التسجيل
+- get_physics_report(): تقرير فيزيائي لكل توليدة
+
+V5.2 الإضافات:
+- Ψ_ω Wave Spectrum (word_spectrum.py): تحويل الكلمات إلى حزم موجية عبر FFT
+- Θ_vec Local Thermo (local_thermo_gate.py): إنتروبيا محلية لكل كلمة
+- DialogueMemory (dialogue_memory.py): ذاكرة حوار طورية — آخر 20 جملة كمسارات طورية
+- IntentDetector (intent_detector.py): كشف القصد بـ 6 أغراض طورية ثابتة
+- AssociativeDialogueMemory (associative_memory.py): ذاكرة ترابطية (intent+topic)→response
+"""
+import re
+import os
+import logging
+import numpy as np
+import yaml
+from src.physics.word_physics import (
+    compute_word_phase_vector,
+    compute_extended_phase_vector,
+    dress_extended_phase_vector,
+    compute_word_mass,
+    phase_similarity,
+)
+from src.physics.constants import PHASE_DIM, ROOT_DIMS, EXTRA_DIMS, SYNTAX_DIMS, TOTAL_DIM
+from src.physics.ram_core import AttractorMemory
+from src.physics.entropy_gate import EntropyGate
+from src.physics.symbolic_bridge import SymbolicBridge
+from src.physics.morpho_phasic import MorphoPhasicEngine
+from src.physics.math_bridge import MathBridge
+from src.physics.syntax_phase import SyntaxTransitionField
+from src.physics.syntax_field import compute_syntax_vector, SYNTAX_ANCHORS
+from src.physics.pragmatic_field import PragmaticBindingEngine
+from src.physics.poetic_gravity import PoeticGravityEngine
+from src.physics.weight_resonance import WeightResonanceEngine
+from src.physics.word_spectrum import spectral_resonance, compute_word_spectrum, spectral_density
+from src.physics.local_thermo_gate import local_entropy, local_temperature, compute_theta, adjust_k_B, adjust_beta
+from src.physics.dialogue_memory import DialogueMemory
+from src.physics.intent_detector import IntentDetector
+from src.physics.associative_memory import AssociativeDialogueMemory
+from src.physics.entity_register import EntityRegister
+from src.physics.response_planner import ResponsePlanner
+from src.physics.sentiment_polarity import sentiment_fidelity, compute_sentence_polarity
+from src.physics.spectral_memory import GlobalSpectralMemory, build_contexts_map
+from src.physics.resonant_chain import ResonantChain
+from src.physics.concept_matrix import ConceptMatrix, build_multi_k
+from src.physics.causal_engine import CausalPhaseEngine
+from src.physics.rotating_anchor import RotatingAnchor
+from src.physics.spectral_wave_engine import (
+    SpectralCouplingMatrix, PhysicsGenerativeNetwork,
+    compute_word_wave, wave_at,
+    wave_signature, adaptive_context_filter,
+)
+from src.grammar.irab_engine import IrabEngine
+from src.grammar.arabic_grammar import ArabicGrammar
+from src.grammar.particles import JAR_PREPS, CONJUNCTIONS
+from src.semantics.arabic_semantics import ArabicRootExtractor
+from src.semantics.english_semantics import EnglishRootExtractor
+from src.physics.english_morpheme import (
+    EnglishMorphology, EnglishGrammarEngine, EnglishWeightResonance,
+    get_en_syntax_anchor, detect_sentence_type,
+)
+from src.physics.dccf import DCCF
+from src.physics.ppm import PromptField
+from src.physics.amfs import adapt_word
+from src.physics.phase_reinforcement import PhaseReinforcement
+from src.physics.potential_cascade import PotentialCascadeLayer
+from src.physics.dialogue_engine import DialogueEngine
+from src.physics.particles import is_particle
+from src.physics.resonance_calibration import ResonanceCalibrator
+from src.physics.phase_evolution import PhaseEvolution
+from src.physics.trajectory_planner import TrajectoryPlanner
+from src.physics.coherence_feedback import CoherenceFeedback
+from src.physics.hierarchical_memory import HierarchicalMemory
+from src.physics.intent_landscape import IntentLandscape
+from src.physics.multi_pass_generator import MultiPassGenerator
+from src.physics.interaction_trace import InteractionTrace
+from src.physics.relational_k import RelationalK
+from src.physics.response_architect import ResponseArchitect
+
+logger = logging.getLogger(__name__)
+
+
+def load_config(config_path=None):
+    """تحميل إعدادات مرنان من config.yaml.
+
+    Args:
+        config_path: مسار ملف الإعداد. إذا None يبحث في مجلد المشروع.
+
+    Returns:
+        dict: إعدادات المحرك الفيزيائي
+    """
+    if config_path is None:
+        project_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        config_path = os.path.join(project_dir, 'config.yaml')
+    if os.path.exists(config_path):
+        with open(config_path, 'r', encoding='utf-8') as f:
+            cfg = yaml.safe_load(f) or {}
+        logger.info(f'  ✓ تحميل config.yaml من: {config_path}')
+        return cfg
+    logger.info('  ⚠ لم يُعثر على config.yaml — استخدام القيم الافتراضية')
+    return {}
+
+class UniversalRootExtractor:
+    def __init__(self):
+        self.arabic = ArabicRootExtractor()
+        self.english = EnglishRootExtractor()
+
+    def extract(self, word):
+        if re.search(r'[a-zA-Z]', word):
+            return self.english.extract(word)
+        return self.arabic.extract(word)
+
+_SENTENCE_STARTERS = {
+    'إن', 'قد', 'لقد', 'سوف', 'هل', 'ما', 'من', 'هذا', 'هذه',
+    'ذلك', 'تلك', 'هناك', 'هنا', 'عندما', 'حيث', 'بينما', 'ربما', 'كان', 'كانت',
+    'ليس', 'ليست', 'يكون', 'تكون', 'أصبح', 'يجب', 'يمكن', 'لا', 'لن', 'لم',
+    'إذا', 'لو', 'لولا', 'كل', 'بعض', 'نفس', 'ذات', 'أول', 'آخر', 'بعد', 'قبل',
+    'فقط', 'حقاً', 'فعلاً', 'بالفعل', 'بالطبع',
+    'في', 'اذا', 'ان', 'كيف', 'لماذا', 'ماذا', 'اين', 'متي', 'هو', 'هي', 'هم',
+    'علي', 'الي', 'عن',
+}
+
+_SENTENCE_ENDERS = {
+    'تماماً', 'بالكامل', 'نهائياً', 'مطلقاً', 'أبداً',
+    'وحسب', 'وكفى', 'لحظتها', 'حينها', 'آنذاك',
+    'الخلاصة', 'ختاماً', 'النهاية',
+    'الاساسيه', 'الاولي', 'الاوليه', 'واحد', 'واحده',
+    'اخري', 'مختلفه', 'بالضبط', 'نفسه',
+}
+
+_EN_SENTENCE_STARTERS = {
+    'the', 'a', 'an', 'this', 'that', 'these', 'those', 'my', 'our', 'your',
+    'his', 'her', 'its', 'their', 'i', 'you', 'he', 'she', 'it', 'we', 'they',
+    'there', 'here', 'what', 'where', 'when', 'why', 'how', 'who', 'which',
+    'please', 'do', 'does', 'did', 'can', 'could', 'will', 'would', 'shall',
+    'should', 'may', 'might', 'must',
+}
+
+_EN_SENTENCE_ENDERS = {
+    'indeed', 'finally', 'altogether', 'anymore', 'anyway',
+    'overall', 'therefore', 'thus', 'hence', 'accordingly',
+    'consequently', 'meanwhile', 'nevertheless', 'nonetheless',
+}
+
+
+def _is_english_word(word):
+    return bool(re.search(r'[a-zA-Z]', word))
+
+
+class Generator:
+    def __init__(self, vocab, coupling_K=None, beam_width=3, top_k=250, seed=42, syntax_field=None, beta=2.0, ram=None, entropy_gate=None, symbolic_bridge=None, morpho=None, corpus_texts=None, K_syn=None, K_sem=None, K_conc=None, K_dialogue=None, contextual_spectra=None, config=None):
+        # ─── تحميل الإعدادات ───
+        self.config = config if config is not None else load_config()
+        self.alpha = self.config.get('alpha', 0.3)
+        self.vocab = vocab
+        self.K_syn = K_syn
+        self.K_sem = K_sem if K_sem is not None else coupling_K
+        self.K_conc = K_conc
+        self.K_dialogue = K_dialogue
+        self.contextual_spectra = contextual_spectra  # (V, 22) — أطياف سياقية من K_sem
+        self.dialogue_spectra = None  # أطياف سياقية من K_dialogue (تُحمّل لاحقاً)
+        self.K = self.K_sem
+        self.V = len(vocab)
+        self.dim = TOTAL_DIM
+        self.beam_width = beam_width
+        self.top_k = min(top_k, self.V)
+        self.rng = np.random.RandomState(seed)
+        self.syntax = syntax_field
+        self.beta = beta
+        self.ram = ram or AttractorMemory()
+        self.entropy = entropy_gate or EntropyGate()
+        self.bridge = symbolic_bridge or SymbolicBridge(vocab, coupling_K)
+        self.morpho = morpho or MorphoPhasicEngine()
+        self.english_morph = EnglishMorphology()
+        self.english_grammar = EnglishGrammarEngine()
+        self.english_weight = EnglishWeightResonance(self.english_morph)
+        self.math_bridge = MathBridge()
+        self.K_dyn = {}
+        self._pv_cache = {}
+        self._dressed_cache = {}
+        self._noun_boost_cache = {}
+        self._all_pv = self._init_pv_matrix()
+        self.spectral_memory = GlobalSpectralMemory(data_dir='data')
+        self.spectral_memory.load_from_disk()
+        self.causal_engine = CausalPhaseEngine()
+        causal_path = 'data/causal_K.npz'
+        if os.path.exists(causal_path):
+            self.causal_engine.load(causal_path, self.V)
+        self.resonant_chain = ResonantChain()
+        self.code_engine = None
+        self.syntax_field = SyntaxTransitionField()
+        self.pragmatic_engine = PragmaticBindingEngine()
+        self.poetic_engine = PoeticGravityEngine()
+        self.weight_resonance = WeightResonanceEngine(morpho_engine=self.morpho)
+        _dccf_cfg = self.config.get('dccf', {})
+        self.dccf = DCCF(
+            decay_rate=_dccf_cfg.get('decay_rate', 0.5),
+            mass_threshold=_dccf_cfg.get('mass_threshold', 0.3),
+        )
+        _pf_cfg = self.config.get('prompt_field', {})
+        self.prompt_field = PromptField(
+            decay_rate=_pf_cfg.get('decay_rate', 0.1),
+            strength=_pf_cfg.get('strength', 1.0),
+        )
+        _pr_cfg = self.config.get('phase_reinforcement', {})
+        self.phase_reinforcement = PhaseReinforcement(
+            learning_rate=_pr_cfg.get('learning_rate', 0.05),
+            decay=_pr_cfg.get('decay', 0.01),
+        )
+        _cas_cfg = self.config.get('cascade', {})
+        self.cascade_layer = PotentialCascadeLayer(
+            lambda_cascade=_cas_cfg.get('lambda_cascade', 3.0),
+            gamma=_cas_cfg.get('gamma', 2.0),
+            delta=_cas_cfg.get('delta', 0.3),
+            phase_lock_threshold=_cas_cfg.get('phase_lock_threshold', 0.65),
+            repulsion_strength=_cas_cfg.get('repulsion_strength', 2.5),
+            friction_decay=_cas_cfg.get('friction_decay', 0.3),
+        )
+        self.cascade_enabled = _cas_cfg.get('enabled', False)
+        self.dialogue_mode = False
+        self.dialogue_engine = None  # initialized after all components are ready
+        self.dialogue_memory = DialogueMemory(max_turns=20, decay=0.05)
+        self.intent_detector = IntentDetector()
+        self.associative_memory = AssociativeDialogueMemory(max_entries=100)
+        self.entity_register = EntityRegister(max_entities=30, decay=0.1, merge_threshold=0.82)
+        self.response_planner = ResponsePlanner(
+            intent_detector=self.intent_detector,
+            associative_memory=self.associative_memory,
+            entity_register=self.entity_register,
+        )
+        self.root_extractor = UniversalRootExtractor()
+        self.rotating_anchor = RotatingAnchor(n_components=3, eps=0.5, min_samples=3)
+        try:
+            self.rotating_anchor.fit(self.vocab, self._all_pv)
+        except Exception as e:
+            logger.warning(f"RotatingAnchor init: {e}")
+        self.spectral_coupling = SpectralCouplingMatrix()
+        try:
+            self.spectral_coupling.fit(self.vocab, coupling_K, corpus_texts)
+        except Exception as e:
+            logger.warning(f"SpectralCouplingMatrix init: {e}")
+        self.pgn = PhysicsGenerativeNetwork(self.spectral_coupling)
+        self.phase_dim = PHASE_DIM
+        self.old_semantic_dim = PHASE_DIM + ROOT_DIMS + EXTRA_DIMS
+        self.syn_start = self.old_semantic_dim
+        self.sem_start = PHASE_DIM + ROOT_DIMS + EXTRA_DIMS + SYNTAX_DIMS
+        if corpus_texts:
+            self.syntax_field.extract(corpus_texts)
+            if not self.spectral_memory.is_loaded:
+                c_map = build_contexts_map(corpus_texts, self.vocab, half_window=7)
+                self.spectral_memory.build_global_signatures(self.vocab, c_map)
+            self.causal_engine.build_from_corpus(corpus_texts, self.vocab, window=5)
+            os.makedirs('data', exist_ok=True)
+            self.causal_engine.save('data/causal_K.npz')
+            self.corpus_texts = corpus_texts
+        self.dialogue_engine = DialogueEngine(
+            intent_detector=self.intent_detector,
+            associative_memory=self.associative_memory,
+        )
+        self.relational_k = RelationalK(config=self.config)
+        self.resonance_calibrator = ResonanceCalibrator(config=self.config)
+        self.phase_evolution = PhaseEvolution(config=self.config)
+        self.trajectory_planner = TrajectoryPlanner(config=self.config)
+        self.coherence_feedback = CoherenceFeedback(config=self.config)
+        self.hierarchical_memory = HierarchicalMemory(config=self.config)
+        self.intent_landscape = IntentLandscape(config=self.config)
+        self.interaction_trace = InteractionTrace(config=self.config)
+        self.response_architect = ResponseArchitect(
+            vocab=self.vocab, K_sem=self.K_sem, all_pv=self._all_pv, config=self.config)
+        self.W = self._init_weights()
+
+    def _init_pv_matrix(self):
+        pv = np.zeros((self.V, TOTAL_DIM))
+        for wid, word in self.vocab.id2word.items():
+            if is_particle(word):
+                pv[wid] = np.random.randn(TOTAL_DIM) * 0.01
+            else:
+                pv[wid] = compute_extended_phase_vector(word, vocab=self.vocab, K=self.K, morpho=self.morpho)
+        return pv
+
+    def _noun_boost(self, word):
+        if word in self._noun_boost_cache:
+            return self._noun_boost_cache[word]
+        try:
+            sv = compute_syntax_vector(word, self.vocab, self.K, self.morpho)
+            noun_a = SYNTAX_ANCHORS["noun"]
+            noun_n = noun_a / max(np.linalg.norm(noun_a), 1e-10)
+            cos = float(np.dot(sv, noun_n))
+            val = 1.5 if cos > 0.7 else 1.0
+        except Exception:
+            val = 1.5 if ArabicGrammar.is_noun_like(word) else 1.0
+        self._noun_boost_cache[word] = val
+        return val
+
+    def _dyn_mass(self, word):
+        base = compute_word_mass(word)
+        boost = self._noun_boost(word)
+        wid = self.vocab.word2id.get(word)
+        k_boost = 1.0
+        if wid is not None and self.K is not None and wid < self.K.shape[0]:
+            row = self.K[wid].toarray().ravel()
+            k_boost = 1.0 + float(row.mean()) * 5.0
+        return base * boost * k_boost
+
+    def _init_weights(self):
+        # تحميل أوزان مخصصة من config.yaml إن وُجدت
+        cfg_w = self.config.get('scoring_weights', {})
+
+        phase_ratio = PHASE_DIM / TOTAL_DIM
+        extra_ratio = 1.0 - phase_ratio
+        raw_align = cfg_w.get('align', phase_ratio * 1.0)
+        raw_prompt = cfg_w.get('prompt_align', extra_ratio * 2.5)
+        raw_diversity = cfg_w.get('diversity', self.entropy.S_crit / 20.0)
+        raw_syntax = cfg_w.get('syntax', 5.00)
+        raw_resonance = cfg_w.get('resonance_gate', self.beta * 2.0)
+        raw_repulsion = cfg_w.get('repulsion', 0.05)
+        raw_symbolic = cfg_w.get('symbolic', min(self.bridge.rule_count / 50.0, 1.0) * 0.40)
+        raw_morpho = cfg_w.get('morpho', 0.35)
+        raw_morpho_trans = cfg_w.get('morpho_trans', 0.50)
+        raw_sentence = cfg_w.get('sentence', 1.00)
+        raw_pos_alt = cfg_w.get('pos_alt', 1.00)
+        raw_irab = cfg_w.get('irab', 0.30)
+        raw_syntax_gate = cfg_w.get('syntax_gate', 1.50)
+        raw_syntax_phase = cfg_w.get('syntax_phase', 2.00)
+        raw_phil_semantic = cfg_w.get('phil_semantic', 1.50)
+        raw_root_align = cfg_w.get('root_align', 0.80)
+        raw_ram_plan = cfg_w.get('ram_plan', 1.00)
+        raw_gravity = cfg_w.get('gravity', 1.50)
+        raw_pragmatic = cfg_w.get('pragmatic', 1.50)
+        raw_weight_resonance = cfg_w.get('weight_resonance', 1.20)
+        raw_poetic = cfg_w.get('poetic', 3.50)
+        raw_rhyme = cfg_w.get('rhyme', 5.00)
+        raw_spectral = cfg_w.get('spectral', 1.80)
+        raw_thermo = cfg_w.get('thermo', 1.50)
+        raw_dialogue_gravity = cfg_w.get('dialogue_gravity', 2.00)
+        raw_dialogue_spectral = cfg_w.get('dialogue_spectral', 1.50)
+        raw_intent_align = cfg_w.get('intent_align', 3.00)
+        raw_associative_plan = cfg_w.get('associative_plan', 3.50)
+        raw_entity_align = cfg_w.get('entity_align', 2.00)
+        raw_plan_fidelity = cfg_w.get('plan_fidelity', 4.00)
+        raw_sentiment = cfg_w.get('sentiment', 1.50)
+        raw_anchor_affinity = cfg_w.get('anchor_affinity', 2.00)
+        raw_semantic_density = cfg_w.get('semantic_density', 2.50)
+        raw_novelty = cfg_w.get('novelty', 0.30)
+        raw_relational_resonance = cfg_w.get('relational_resonance', 3.00)
+        raw_context_wave_filter = cfg_w.get('context_wave_filter', 2.00)
+        raw_eng_morpho = cfg_w.get('eng_morpho', 0.80)
+        raw_eng_morpho_trans = cfg_w.get('eng_morpho_trans', 0.60)
+        raw_eng_grammar = cfg_w.get('eng_grammar', 1.00)
+        raw_eng_agreement = cfg_w.get('eng_agreement', 0.50)
+        raw_eng_stem_align = cfg_w.get('eng_stem_align', 0.60)
+        raw_global_resonance = cfg_w.get('global_resonance', 2.00)
+        raw_phase_opposition = cfg_w.get('phase_opposition', 1.50)
+        raw_syn = cfg_w.get('syn', 2.00)
+        raw_sem = cfg_w.get('sem', 1.50)
+        raw_conc = cfg_w.get('conc', 1.00)
+        raw_causal = cfg_w.get('causal', 2.00)
+        raw_resonant_chain = cfg_w.get('resonant_chain', 3.00)
+        raw_dccf = cfg_w.get('dccf', 2.00)
+        raw_ppm = cfg_w.get('ppm', 1.50)
+        raw_amfs = cfg_w.get('amfs', 1.50)
+        raw_cascade = cfg_w.get('cascade', 1.50)
+        raw_dialogue = cfg_w.get('dialogue', 3.00)
+        raw_contextual_spectra = cfg_w.get('contextual_spectra', 10.00)
+        raw_trajectory = cfg_w.get('trajectory', 1.50)
+        raw_hierarchical = cfg_w.get('hierarchical', 1.20)
+        raw_intent_landscape = cfg_w.get('intent_landscape', 1.50)
+        raw_trace = cfg_w.get('trace', 0.50)
+        raw_relational = cfg_w.get('relational', 1.00)
+        raw_architect = cfg_w.get('architect', 3.00)
+        pos_terms = [raw_align, raw_prompt, raw_diversity, raw_syntax,
+                     raw_resonance, raw_symbolic, raw_morpho,
+                     raw_morpho_trans, raw_sentence, raw_pos_alt, raw_irab,
+                     raw_syntax_gate, raw_syntax_phase, raw_phil_semantic,
+                     raw_root_align, raw_ram_plan, raw_gravity, raw_pragmatic,
+                     raw_weight_resonance, raw_poetic, raw_rhyme,
+                     raw_spectral, raw_thermo,
+                     raw_dialogue_gravity, raw_dialogue_spectral,
+                     raw_intent_align, raw_associative_plan,
+                     raw_entity_align, raw_plan_fidelity,
+                     raw_sentiment,
+                     raw_anchor_affinity, raw_semantic_density,
+                     raw_novelty,
+                     raw_relational_resonance, raw_context_wave_filter,
+                     raw_eng_morpho, raw_eng_morpho_trans, raw_eng_grammar,
+                     raw_eng_agreement, raw_eng_stem_align,
+                     raw_global_resonance, raw_phase_opposition,
+                     raw_syn, raw_sem, raw_conc, raw_causal, raw_resonant_chain,
+                     raw_dccf, raw_ppm, raw_amfs, raw_contextual_spectra,
+                      raw_trajectory, raw_hierarchical, raw_intent_landscape, raw_trace, raw_relational,
+                      raw_architect]
+        pos_sum = sum(pos_terms)
+        scale = 0.95 / pos_sum
+        return {
+            'align': raw_align * scale,
+            'prompt_align': raw_prompt * scale,
+            'diversity': raw_diversity * scale,
+            'syntax': raw_syntax * scale,
+            'resonance_gate': raw_resonance * scale,
+            'repulsion': raw_repulsion * scale,
+            'symbolic': raw_symbolic * scale,
+            'morpho': raw_morpho * scale,
+            'morpho_trans': raw_morpho_trans * scale,
+            'sentence': raw_sentence * scale,
+            'pos_alt': raw_pos_alt * scale,
+            'irab': raw_irab * scale,
+            'syntax_gate': raw_syntax_gate * scale,
+            'syntax_phase': raw_syntax_phase * scale,
+            'phil_semantic': raw_phil_semantic * scale,
+            'root_align': raw_root_align * scale,
+            'ram_plan': raw_ram_plan * scale,
+            'gravity': raw_gravity * scale,
+            'pragmatic': raw_pragmatic * scale,
+            'weight_resonance': raw_weight_resonance * scale,
+            'poetic': raw_poetic * scale,
+            'rhyme': raw_rhyme * scale,
+            'spectral': raw_spectral * scale,
+            'thermo': raw_thermo * scale,
+            'dialogue_gravity': raw_dialogue_gravity * scale,
+            'dialogue_spectral': raw_dialogue_spectral * scale,
+            'intent_align': raw_intent_align * scale,
+            'associative_plan': raw_associative_plan * scale,
+            'entity_align': raw_entity_align * scale,
+            'plan_fidelity': raw_plan_fidelity * scale,
+            'sentiment': raw_sentiment * scale,
+            'anchor_affinity': raw_anchor_affinity * scale,
+            'semantic_density': raw_semantic_density * scale,
+            'novelty': raw_novelty * scale,
+            'relational_resonance': raw_relational_resonance * scale,
+            'context_wave_filter': raw_context_wave_filter * scale,
+            'eng_morpho': raw_eng_morpho * scale,
+            'eng_morpho_trans': raw_eng_morpho_trans * scale,
+            'eng_grammar': raw_eng_grammar * scale,
+            'eng_agreement': raw_eng_agreement * scale,
+            'eng_stem_align': raw_eng_stem_align * scale,
+            'global_resonance': raw_global_resonance * scale,
+            'phase_opposition': raw_phase_opposition * scale,
+            'syn': raw_syn * scale,
+            'sem': raw_sem * scale,
+            'conc': raw_conc * scale,
+            'causal': raw_causal * scale,
+            'resonant_chain': raw_resonant_chain * scale,
+            'dccf': raw_dccf * scale,
+            'ppm': raw_ppm * scale,
+            'amfs': raw_amfs * scale,
+            'cascade': raw_cascade * scale,
+            'dialogue': raw_dialogue * scale,
+            'contextual_spectra': raw_contextual_spectra * scale,
+            'trajectory': raw_trajectory * scale,
+            'hierarchical': raw_hierarchical * scale,
+            'intent_landscape': raw_intent_landscape * scale,
+            'trace': raw_trace * scale,
+            'relational': raw_relational * scale,
+            'architect': raw_architect * scale,
+        }
+
+    def _get_pv(self, word):
+        if word not in self._pv_cache:
+            self._pv_cache[word] = compute_extended_phase_vector(word)
+        return self._pv_cache[word]
+
+    def _get_pv_fast(self, word):
+        wid = self.vocab.word2id.get(word)
+        if wid is not None:
+            return self._all_pv[wid]
+        if word not in self._pv_cache:
+            self._pv_cache[word] = compute_extended_phase_vector(word)
+        return self._pv_cache[word]
+
+    def _dde_boost(self, pv, S):
+        if S <= self.entropy.S_crit:
+            return pv
+        boosted = pv.copy()
+        boost = 1.0 + min((S - self.entropy.S_crit) * 2.0, 3.0)
+        boosted[self.phase_dim:self.old_semantic_dim] = boosted[self.phase_dim:self.old_semantic_dim] * boost
+        return boosted
+
+    def _get_dressed_pv(self, word, context_words, alpha=None):
+        if alpha is None:
+            alpha = self.alpha
+        if context_words is None or not context_words:
+            return self._get_pv_fast(word)
+        key = (word, tuple(context_words[-5:]))
+        if key not in self._dressed_cache:
+            base_pv = self._get_pv_fast(word).copy()
+            recent_pvs = np.array([self._get_pv_fast(c) for c in context_words[-3:]])
+            if len(recent_pvs) > 0:
+                attentions = np.array([phase_similarity(rpv[:self.old_semantic_dim], base_pv[:self.old_semantic_dim]) for rpv in recent_pvs])
+                attentions = np.maximum(attentions, 0.0)
+                sum_att = np.sum(attentions)
+                if sum_att > 1e-5:
+                    attentions /= sum_att
+                    context_blend = np.average(recent_pvs, axis=0, weights=attentions)
+                    base_pv = (1 - alpha) * base_pv + alpha * context_blend
+                    nrm = np.linalg.norm(base_pv)
+                    if nrm > 1e-10:
+                        base_pv = base_pv / nrm
+            self._dressed_cache[key] = base_pv
+        return self._dressed_cache[key]
+
+    def _same_pos_as_prev(self, word, prev_word):
+        if prev_word is None:
+            return False
+        pos_w = self.morpho.get_pos(word)
+        pos_p = self.morpho.get_pos(prev_word)
+        if pos_w is None or pos_p is None:
+            return False
+        return pos_w == pos_p
+
+    def _target_phase(self, pv_list):
+        if not pv_list:
+            return np.zeros(self.old_semantic_dim)
+        n = len(pv_list)
+        if n == 1:
+            avg = pv_list[0][:self.old_semantic_dim].copy()
+        else:
+            weights = np.exp(-0.8 * np.arange(n))[::-1]
+            weights = weights / weights.sum()
+            pv_phase = np.array([p[:self.old_semantic_dim] for p in pv_list])
+            avg = np.average(pv_phase, axis=0, weights=weights)
+        return avg
+
+    def _phase_align(self, w_pv, target_pv):
+        if np.linalg.norm(target_pv) < 1e-10:
+            return 0.0
+        return phase_similarity(target_pv[:self.old_semantic_dim], w_pv[:self.old_semantic_dim])
+
+    def _phil_semantic_align(self, w_pv, target_pv):
+        w_sem = w_pv[self.sem_start:]
+        target_sem = target_pv[self.sem_start:]
+        if np.linalg.norm(target_sem) < 1e-10 or np.linalg.norm(w_sem) < 1e-10:
+            return 0.0
+        return phase_similarity(target_sem, w_sem)
+
+    def _n_body_gravity(self, word, w_pv, context_words, context_pvs):
+        if not context_words:
+            return 0.0
+        n_words = len(context_words)
+        c_masses = np.array([self._dyn_mass(c) for c in context_words])
+        seq_dists = np.arange(n_words, 0, -1, dtype=float)
+        c_pv_matrix = np.array([c[:self.old_semantic_dim] for c in context_pvs])
+        w_pv_trunc = w_pv[:self.old_semantic_dim]
+        phase_aligns = np.array([phase_similarity(c, w_pv_trunc) for c in c_pv_matrix])
+        field_strength = (c_masses * phase_aligns) / (seq_dists ** 2)
+        total_field = np.sum(field_strength)
+        return float(total_field) / max(float(n_words), 1.0)
+
+    def _score(self, word, used, all_pv, prompt_pv, gen_pos=0, total_pos=1, prev_word=None, context_ids=None, context_words=None, k_B_cur=None, beta_cur=None, S=None, _prev_freqs=None):
+        wid = self.vocab.word2id.get(word)
+        if wid is None or word in used or len(word) < 2:
+            return -np.inf
+        beta = beta_cur if beta_cur is not None else self.beta
+        w_pv = self._get_dressed_pv(word, context_words)
+        if S is not None:
+            w_pv = self._dde_boost(w_pv, S)
+        # Phase Reinforcement — تعزيز طوري مكتسب
+        w_pv = self.phase_reinforcement.apply(word, w_pv)
+        target = self._target_phase(all_pv)
+        align = self._phase_align(w_pv, target)
+
+        target_full = np.average(np.array(all_pv), axis=0) if all_pv else np.zeros_like(w_pv)
+        phil_semantic = self._phil_semantic_align(w_pv, target_full)
+
+        prompt_align = 0.0
+        prompt_phil_align = 0.0
+        if prompt_pv:
+            for pp in prompt_pv:
+                prompt_align += self._phase_align(w_pv, pp)
+                prompt_phil_align += self._phil_semantic_align(w_pv, pp)
+            prompt_align /= len(prompt_pv)
+            prompt_phil_align /= len(prompt_pv)
+        phil_semantic = (phil_semantic + prompt_phil_align) / 2.0
+
+        prev_used = list(used)[-6:]
+        if prev_used:
+            word_count = sum(1 for w in prev_used if w == word)
+            diversity = 1.0 - (word_count / len(prev_used))
+            recent_pvs = [self._get_pv_fast(w) for w in prev_used[-3:] if w != word]
+            if recent_pvs:
+                similarities = [phase_similarity(w_pv[:self.old_semantic_dim], rpv[:self.old_semantic_dim]) for rpv in recent_pvs]
+                repulsion_score = -float(np.mean(similarities))
+            else:
+                repulsion_score = 0.0
+        else:
+            diversity = 1.0
+            repulsion_score = 0.0
+
+        syntax_gate_score = 0.0
+        syntax_score = 0.0
+        if prev_word is not None and self.syntax_field is not None:
+            syntax_gate_score = self.syntax_field.gate(prev_word, word)
+        if self.syntax is not None and prev_word is not None:
+            syntax_score = self.syntax.transition_align(prev_word, word)
+
+        sentence_score = 0.0
+        if gen_pos < 3 and (word in _SENTENCE_ENDERS or word in _EN_SENTENCE_ENDERS):
+            sentence_score -= 1.0
+        if gen_pos > total_pos - 3 and (word in _SENTENCE_STARTERS or word in _EN_SENTENCE_STARTERS):
+            sentence_score -= 1.0
+
+        pos_alt_score = 0.0
+        if self.morpho and prev_word:
+            if self._same_pos_as_prev(word, prev_word):
+                pos_alt_score -= 0.5
+
+        irab_score = 0.0
+        if prev_word:
+            irab_score = IrabEngine.score_sentence([prev_word, word])
+
+        root_align_score = 0.0
+        if prev_word:
+            root_w, _ = self.root_extractor.extract(word)
+            root_p, _ = self.root_extractor.extract(prev_word)
+            if root_w == root_p and len(root_w) >= 3:
+                root_align_score += 1.0
+
+        eng_morpho_score = 0.0
+        eng_morpho_trans_score = 0.0
+        eng_grammar_score = 0.0
+        eng_agreement_score = 0.0
+        eng_stem_align_score = 0.0
+        if _is_english_word(word):
+            eng_morpho_score = self.english_morph.score(word, prev_word)
+            if prev_word:
+                eng_morpho_trans_score = self.english_morph.transition_score(word, prev_word)
+                eng_agreement_score = self.english_morph.agreement_score(word, prev_word)
+                ew_stem = self.english_morph.get_stem(word)
+                ep_stem = self.english_morph.get_stem(prev_word)
+                if ew_stem == ep_stem and len(ew_stem) >= 3:
+                    eng_stem_align_score = 0.8
+            if context_words:
+                all_eng = [w for w in context_words if _is_english_word(w)]
+                if len(all_eng) >= 2:
+                    eng_grammar_score = self.english_grammar.score_sentence(all_eng[-5:] + [word])
+
+        ram_align_score = 0.0
+        if self.ram.size > 0:
+            closest_ram_pv = self.ram.get_closest_pv(word, target)
+            ram_align_score = self._phase_align(w_pv, closest_ram_pv)
+
+        gravity_score = 0.0
+        if context_words:
+            gravity_score = self._n_body_gravity(word, w_pv, context_words, all_pv)
+
+        pragmatic_align = 0.0
+        phase_opp_score = 0.0
+        causal_score = 0.0
+        resonant_chain_score = 0.0
+        if context_words:
+            intent_frame, alpha_intent, is_int = self.pragmatic_engine.detect_intent_frame(context_words)
+            pragmatic_align = self.pragmatic_engine.compute_pragmatic_score(w_pv, intent_frame, alpha_intent, word, is_int)
+            phase_opp_score = self.pragmatic_engine.phase_opposition_score(w_pv, all_pv)
+            if hasattr(self, 'causal_engine') and context_ids and wid is not None:
+                causal_score = self.causal_engine.score_candidate(wid, context_ids)
+            if prev_word is not None and hasattr(self, 'resonant_chain'):
+                m_prev = self._dyn_mass(prev_word)
+                m_cand = self._dyn_mass(word)
+                pv_prev = self._get_pv_fast(prev_word)
+                f_cand = self.resonant_chain.pair_freq(m_prev, m_cand, pv_prev, w_pv)
+                if _prev_freqs is not None:
+                    prev_freqs = _prev_freqs
+                else:
+                    prev_freqs = []
+                    for k in range(1, len(context_words)):
+                        wa, wb = context_words[k - 1], context_words[k]
+                        ma = self._dyn_mass(wa)
+                        mb = self._dyn_mass(wb)
+                        pva = self._get_pv_fast(wa)
+                        pvb = self._get_pv_fast(wb)
+                        prev_freqs.append(self.resonant_chain.pair_freq(ma, mb, pva, pvb))
+                resonant_chain_score = self.resonant_chain.score_candidate(
+                    m_prev, m_cand, pv_prev, w_pv, prev_freqs)
+
+        score = 0.0
+        score += self.W.get('align', 0.0) * align
+        score += self.W.get('prompt_align', 0.0) * prompt_align
+        score += self.W.get('diversity', 0.0) * diversity
+        score += self.W.get('syntax', 0.0) * syntax_score
+        score += self.W.get('repulsion', 0.0) * repulsion_score
+        score += self.W.get('sentence', 0.0) * sentence_score
+        score += self.W.get('pos_alt', 0.0) * pos_alt_score
+        score += self.W.get('irab', 0.0) * irab_score
+        score += self.W.get('syntax_gate', 0.0) * syntax_gate_score
+        score += self.W.get('phil_semantic', 0.0) * phil_semantic
+        score += self.W.get('root_align', 0.0) * root_align_score
+        if _is_english_word(word):
+            score += self.W.get('eng_morpho', 0.0) * eng_morpho_score
+            score += self.W.get('eng_morpho_trans', 0.0) * eng_morpho_trans_score
+            score += self.W.get('eng_grammar', 0.0) * eng_grammar_score
+            score += self.W.get('eng_agreement', 0.0) * eng_agreement_score
+            score += self.W.get('eng_stem_align', 0.0) * eng_stem_align_score
+        score += self.W.get('ram_plan', 0.0) * ram_align_score
+        score += self.W.get('gravity', 0.0) * gravity_score
+        score += self.W.get('pragmatic', 0.0) * pragmatic_align
+        score += self.W.get('causal', 0.0) * causal_score
+        score += self.W.get('resonant_chain', 0.0) * resonant_chain_score
+        score += self.W.get('phase_opposition', 0.0) * phase_opp_score
+
+        word_weight = self.weight_resonance.get_weight(word)
+        prev_weight = self.weight_resonance.get_weight(prev_word) if prev_word else None
+        weight_resonance_score = 0.0
+        if word_weight is not None and prev_weight is not None:
+            weight_resonance_score = self.weight_resonance.transition_score(prev_weight, word_weight)
+        elif word_weight is not None and context_words:
+            ctx_weights = [self.weight_resonance.get_weight(w) for w in context_words[-3:] if w != word]
+            ctx_weights = [w for w in ctx_weights if w is not None]
+            if ctx_weights:
+                weight_resonance_score = max(self.weight_resonance.resonance(word_weight, cw) for cw in ctx_weights)
+        score += self.W.get('weight_resonance', 0.0) * weight_resonance_score
+
+        en_weight = self.english_weight.get_weight(word) if _is_english_word(word) else None
+        en_prev_weight = self.english_weight.get_weight(prev_word) if (prev_word and _is_english_word(prev_word)) else None
+        en_weight_score = 0.0
+        if en_weight is not None and en_prev_weight is not None:
+            en_weight_score = self.english_weight.transition_score(en_prev_weight, en_weight)
+        elif en_weight is not None and context_words:
+            en_ctx = [self.english_weight.get_weight(w) for w in context_words[-3:] if w != word and _is_english_word(w)]
+            en_ctx = [w for w in en_ctx if w is not None]
+            if en_ctx:
+                en_weight_score = max(self.english_weight.resonance(en_weight, cw) for cw in en_ctx)
+        score += self.W.get('weight_resonance', 0.0) * en_weight_score * 0.8
+
+        spectral_score = 0.0
+        if context_words:
+            ctx_spec = [spectral_resonance(word, cw) for cw in context_words[-5:] if cw != word]
+            if ctx_spec:
+                spectral_score = float(np.mean(ctx_spec))
+                if hasattr(word, '__len__') and len(word) > 5 and any(cw in word or word in cw 
+                        for cw in context_words[-3:] if cw != word):
+                    spectral_score *= 1.5
+        score += self.W.get('spectral', 0.0) * spectral_score
+
+        thermo_score = 0.0
+        if prev_word and w_pv is not None:
+            theta = compute_theta(word, w_pv, all_pv, target, k_B=self.entropy.k_B, beta=self.beta)
+            thermo_score = max(0.0, 1.0 - theta['P'] * theta['T'] * 0.1)
+        score += self.W.get('thermo', 0.0) * thermo_score
+
+        dialogue_gravity_score = 0.0
+        if w_pv is not None and self.dialogue_memory.turns:
+            dialogue_gravity_score = self.dialogue_memory.dialogue_gravity(word, w_pv)
+        score += self.W.get('dialogue_gravity', 0.0) * dialogue_gravity_score
+
+        dialogue_spectral_score = 0.0
+        if self.dialogue_memory.turns:
+            dialogue_spectral_score = self.dialogue_memory.spectral_context_resonance(word)
+        score += self.W.get('dialogue_spectral', 0.0) * dialogue_spectral_score
+
+        intent_align_score = 0.0
+        if w_pv is not None and hasattr(self, 'intent_detector'):
+            last_turn = list(self.dialogue_memory.turns)[-1] if self.dialogue_memory.turns else None
+            if last_turn and last_turn.speaker == "user":
+                intent_result = self.intent_detector.detect(last_turn.text)
+                intent_pv = self.intent_detector.get_intent_pv(intent_result['intent'])
+                if intent_pv is not None:
+                    intent_align_score = phase_similarity(w_pv[:PHASE_DIM], intent_pv[:PHASE_DIM])
+        score += self.W.get('intent_align', 0.0) * max(0.0, intent_align_score)
+
+        associative_plan_score = 0.0
+        if hasattr(self, 'associative_memory') and self.dialogue_memory.turns:
+            last_turn = list(self.dialogue_memory.turns)[-1]
+            if last_turn.speaker == "user":
+                intent_result = self.intent_detector.detect(last_turn.text)
+                topic_pv = self.dialogue_memory.get_context_pv()
+                plan_pv, confidence, _ = self.associative_memory.retrieve(
+                    intent_result['intent'], topic_pv
+                )
+                if plan_pv is not None and w_pv is not None:
+                    plan_align = phase_similarity(w_pv[:PHASE_DIM], plan_pv[:PHASE_DIM])
+                    associative_plan_score = plan_align * confidence
+        score += self.W.get('associative_plan', 0.0) * max(0.0, associative_plan_score)
+
+        entity_gravity_score = 0.0
+        if hasattr(self, 'entity_register') and w_pv is not None:
+            entity_gravity_score = self.entity_register.entity_gravity(word, w_pv)
+        score += self.W.get('entity_align', 0.0) * entity_gravity_score
+
+        plan_fidelity_score = 0.0
+        if hasattr(self, 'response_planner') and w_pv is not None:
+            plan_pv_t, tight = self.response_planner.get_target_for_step(gen_pos)
+            if plan_pv_t is not None:
+                plan_fidelity_score = tight * phase_similarity(w_pv[:PHASE_DIM], plan_pv_t[:PHASE_DIM])
+        score += self.W.get('plan_fidelity', 0.0) * max(0.0, plan_fidelity_score)
+
+        novelty_score = 0.0
+        wid_check = self.vocab.word2id.get(word)
+        if wid_check is not None and wid_check >= self.V:
+            novelty_score = 0.5  # كلمة جديدة خارج المصفوفة K
+        score += self.W.get('novelty', 0.0) * novelty_score
+
+        sentiment_score = sentiment_fidelity(word, context_words or [])
+        score += self.W.get('sentiment', 0.0) * sentiment_score
+
+        anchor_affinity_score = 0.0
+        if hasattr(self, 'rotating_anchor') and w_pv is not None:
+            anchor_affinity_score = self.rotating_anchor.anchor_affinity(word, w_pv)
+        score += self.W.get('anchor_affinity', 0.0) * anchor_affinity_score
+
+        semantic_density_score = 0.0
+        if hasattr(self, 'rotating_anchor') and context_words and all_pv:
+            semantic_density_score = self.rotating_anchor.semantic_density(
+                word, context_words, all_pv)
+        score += self.W.get('semantic_density', 0.0) * semantic_density_score
+
+        global_resonance_score = 0.0
+        if hasattr(self, 'spectral_memory') and all_pv:
+            ctx_vector = np.mean(all_pv, axis=0)
+            if wid is not None:
+                global_resonance_score = self.spectral_memory.get_global_resonance(wid, ctx_vector)
+        score += self.W.get('global_resonance', 0.0) * global_resonance_score
+
+        relational_resonance_score = 0.0
+        if hasattr(self, 'spectral_coupling') and context_words:
+            relational_resonance_score = self.spectral_coupling.resonance_with_context(
+                word, context_words, self.vocab)
+        score += self.W.get('relational_resonance', 0.0) * relational_resonance_score
+
+        context_wave_filter_score = 0.0
+        if hasattr(self, 'spectral_coupling') and context_words and w_pv is not None:
+            ctx_pvs = [self._get_pv_fast(cw) for cw in context_words[-5:]]
+            filtered_pv = adaptive_context_filter(w_pv, ctx_pvs, bandwidth=0.3)
+            if filtered_pv is not None:
+                context_wave_filter_score = phase_similarity(w_pv[:PHASE_DIM], filtered_pv[:PHASE_DIM])
+        score += self.W.get('context_wave_filter', 0.0) * context_wave_filter_score
+
+        # الطيف السياقي — درجة توافق الحقل الدلالي (تجريبي)
+        context_spectral_score = 0.0
+        if context_ids and wid is not None:
+            spectra = self.dialogue_spectra if (self.dialogue_mode and self.dialogue_spectra is not None) else self.contextual_spectra
+            if spectra is not None:
+                from src.physics.spectral_context import context_spectral_score as _cs_score
+                context_spectral_score = _cs_score(wid, context_ids, spectra)
+        score += self.W.get('contextual_spectra', 0.0) * context_spectral_score
+
+        cohesion_val = 0.0
+        if hasattr(self.syntax, 'cohesion_score'):
+            cohesion_val = self.syntax.cohesion_score(prev_word, word)
+        # في وضع الحوار، نُقلّص تأثير cohesion لأنه يعتمد على قواعد تعريف (الـ) لا على الحوار
+        cohesion_mult = 0.1 if self.dialogue_mode else 1.0
+        score += cohesion_mult * 3.0 * cohesion_val
+
+        if gen_pos < 3:
+            dyn_syn, dyn_sem, dyn_conc = 1.5, 1.0, 0.5
+        else:
+            dyn_syn, dyn_sem, dyn_conc = 0.5, 1.0, 1.5
+
+        k_syn_score = 0.0
+        k_sem_score = 0.0
+        k_conc_score = 0.0
+        
+        if context_ids:
+            def calc_k_score(matrix, window_limit):
+                if matrix is None: return 0.0
+                limit = min(window_limit, len(context_ids))
+                val_sum = 0.0
+                hits = 0
+                for i in range(1, limit + 1):
+                    cid = context_ids[-i]
+                    if cid is not None and cid < matrix.shape[0] and wid < matrix.shape[1]:
+                        val = max(float(matrix[cid, wid]), 0.0)
+                        if hasattr(self, 'K_dyn') and matrix is self.K_sem:
+                            val += self.K_dyn.get((cid, wid), 0.0) * 5.0
+                        if val > 0:
+                            row_sum = float(matrix[cid].sum())
+                            prob = val / max(row_sum, 1.0)
+                            val_sum += prob / float(i)
+                            if prob > 0.005: hits += 1
+                return val_sum * (hits ** 1.5) if val_sum > 0 else 0.0
+
+            k_syn_score = calc_k_score(self.K_syn, 2)
+            k_sem_score = calc_k_score(self.K_sem, 5)
+            k_conc_score = calc_k_score(self.K_conc, 10)
+
+        n_pv = min(3, len(all_pv))
+        act = 0.0
+        if n_pv > 0:
+            for cpv in all_pv[-n_pv:]:
+                act += float(np.exp(beta * phase_similarity(cpv[:self.old_semantic_dim], w_pv[:self.old_semantic_dim])))
+            act /= max(n_pv, 1.0)
+        else:
+            act = 1.0
+
+        # الحروف النحوية لا تمتلك معنى دلالي — تعطيل scores الدلالية لها
+        if is_particle(word):
+            k_syn_score = 0.0
+            k_sem_score = 0.0
+            k_conc_score = 0.0
+            act = 0.0
+
+        score += self.W.get('syn', 0.0) * dyn_syn * k_syn_score * act
+        score += self.W.get('sem', 0.0) * dyn_sem * k_sem_score * act
+        score += self.W.get('conc', 0.0) * dyn_conc * k_conc_score * act
+
+        if self.bridge:
+            score += self.W.get('symbolic', 0.0) * self.bridge.evaluate(word, [prev_word] if prev_word else [])
+        if self.morpho:
+            score += self.W.get('morpho', 0.0) * self.morpho.score(word, prev_word)
+            score += self.W.get('morpho_trans', 0.0) * self.morpho.transition_score(word, prev_word)
+
+        # AMFS — Adaptive Mass & Frequency Shift
+        amfs_ctx = context_words or (all_pv and [self.vocab.id2word.get(i, '') for i in context_ids[-3:]]) or []
+        if amfs_ctx:
+            amfs_result = adapt_word(word, context_words=amfs_ctx)
+            amfs_boost = max(0.0, amfs_result['centrality'] * amfs_result['mass'] / 3.0)
+        else:
+            amfs_boost = 0.0
+        score += self.W.get('amfs', 0.0) * amfs_boost
+
+        # DCCF — Dynamic Contextual Coupling Field
+        dccf_score = 0.0
+        if context_words:
+            dccf_score = self.dccf.get_context_boost(word, context_words)
+        score += self.W.get('dccf', 0.0) * dccf_score
+
+        # PPM — Prompt Phase Modulation
+        ppm_score = 0.0
+        w_pv_for_ppm = w_pv if w_pv is not None else self._get_pv_fast(word)
+        if w_pv_for_ppm is not None:
+            ppm_score = self.prompt_field.score(w_pv_for_ppm)
+        score += self.W.get('ppm', 0.0) * ppm_score
+
+        # Dialogue — طبقة حوارية تمنع الاستكمال الإحصائي
+        dialogue_score = 0.0
+        if self.dialogue_mode and context_words:
+            last_user_pv = self._get_pv_fast(context_words[-1]) if context_words else None
+            dialogue_score = self.dialogue_engine.compute_dialogue_score(
+                candidate_pv=w_pv,
+                candidate_word=word,
+                last_user_pv=last_user_pv,
+                context_words=context_words,
+            )
+        score += self.W.get('dialogue', 0.0) * dialogue_score
+
+        # مكافأة K_dialogue — تخبر النموذج: "هذه الكلمة مناسبة حوارياً"
+        # كلما زادت إشارة K_dialogue، زادت المكافأة — تسود على ضوضاء K_sem
+        k_dialogue_score = 0.0
+        if self.dialogue_mode and context_ids and self.K_dialogue is not None:
+            limit = min(3, len(context_ids))
+            for i in range(1, limit + 1):
+                cid = context_ids[-i]
+                if cid is not None and cid < self.K_dialogue.shape[0] and wid < self.K_dialogue.shape[1]:
+                    val = float(max(self.K_dialogue[cid, wid], 0.0))
+                    if val > 0:
+                        k_dialogue_score += val / float(i)
+        score += k_dialogue_score / 10.0
+
+        # تصنيف دلالي — مكافأة للكلمات من نفس فئة السياق
+        category_score = 0.0
+        if context_words:
+            from src.physics.semantic_categories import category_bonus
+            category_score = category_bonus(word, context_words)
+        score += category_score  # مكافأة مباشرة (0.3 للكلمات المتوافقة)
+
+        # مسار الطور — توافق مع المعلم الحالي في مسار التوليد
+        trajectory_score = 0.0
+        if hasattr(self, 'trajectory_planner') and self.trajectory_planner.current_milestones:
+            trajectory_score = self.trajectory_planner.compute_trajectory_score(
+                w_pv, gen_pos, total_pos)
+        score += self.W.get('trajectory', 0.0) * trajectory_score
+
+        # ذاكرة هرمية — رنين مع مستويات السياق المضغوطة
+        hierarchical_score = 0.0
+        if hasattr(self, 'hierarchical_memory') and self.hierarchical_memory.word_level.entries:
+            level_resonance = self.hierarchical_memory.compute_level_resonance(w_pv)
+            hierarchical_score = level_resonance.get('weighted', 0.0)
+        score += self.W.get('hierarchical', 0.0) * hierarchical_score
+
+        # مشهد القصد — جهد المحتمل من بئر القصد
+        intent_landscape_score = 0.0
+        if hasattr(self, 'intent_landscape') and self.intent_landscape.wells:
+            if hasattr(self, 'dialogue_memory') and self.dialogue_memory.turns:
+                last_turn = list(self.dialogue_memory.turns)[-1]
+                if last_turn.speaker == "user":
+                    detected = self.intent_landscape.detect(last_turn.text)
+                    best_well = self.intent_landscape.get_target_well(detected['intent'])
+                    if best_well is not None:
+                        intent_landscape_score = -best_well.potential(w_pv)
+        score += self.W.get('intent_landscape', 0.0) * max(0.0, intent_landscape_score)
+
+        # أثر التفاعل — تعزيز الكلمات المتوافقة مع أنماط المستخدم
+        trace_score = 0.0
+        if hasattr(self, 'interaction_trace') and self.interaction_trace.n_interactions > 0:
+            trace_score = self.interaction_trace.get_context_boost(w_pv)
+        score += self.W.get('trace', 0.0) * trace_score
+
+        # K علاقية — استخراج نسب محددة من K المشفرة
+        relational_score = 0.0
+        if context_ids and wid is not None and hasattr(self, 'relational_k'):
+            for rtype in ['sem', 'verb_obj', 'adj_noun']:
+                relational_score += self.relational_k.relational_score(
+                    wid, context_ids, self.K_sem, relation_type=rtype)
+            relational_score /= 3.0
+        score += self.W.get('relational', 0.0) * relational_score
+
+        # بناء معماري — توجيه الرد حسب خطة محرك البناء
+        architect_score = 0.0
+        if self.dialogue_mode and hasattr(self, 'response_architect'):
+            if hasattr(self, '_architect_guidance') and self._architect_guidance is not None:
+                architect_score = self.response_architect.compute_architect_score(
+                    word, self._architect_guidance, vocab=self.vocab, K_sem=self.K_sem)
+        score += self.W.get('architect', 0.0) * architect_score
+
+        # Potential Cascade — هوي تراكمي حتمي (اختياري)
+        cascade_score = 0.0
+        if self.cascade_enabled and context_words:
+            ctx_masses = [self._dyn_mass(w) for w in context_words]
+            syntax_valid = syntax_gate_score > -0.5 or syntax_score > -0.3
+            cascade_score = self.cascade_layer.compute_score(
+                w_pv, all_pv, ctx_masses, syntax_valid,
+                used_words=list(used)[-5:] if used else None,
+                word_to_pv_fn=self._get_pv_fast,
+            )
+        score += self.W.get('cascade', 0.0) * cascade_score
+
+        return score
+
+    def _resonance_candidates(self, context_ids, all_pv, used_set, beta_cur=None, prev_word=None):
+        beta = beta_cur if beta_cur is not None else self.beta
+        scores = {}
+        last_id = context_ids[-1] if context_ids else None
+        if last_id is None or self.K is None or last_id >= self.K.shape[0]:
+            return []
+
+        def get_prob_row(cid, matrix=None):
+            if matrix is None:
+                matrix = self.K
+            r = matrix[cid].toarray().ravel()
+            total = r.sum()
+            return r / max(total, 1.0)
+
+        # رنين أساسي من K_sem (المعرفة)
+        row = get_prob_row(last_id).copy()
+        n_ctx = min(3, len(context_ids))
+        for i in range(2, n_ctx + 1):
+            cid = context_ids[-i]
+            if cid is not None and cid < self.K.shape[0]:
+                ctx_row = get_prob_row(cid)
+                row += ctx_row * (2.0 / i)
+
+        if len(context_ids) > 3:
+            prompt_id = context_ids[0]
+            if prompt_id is not None and prompt_id < self.K.shape[0]:
+                prompt_row = get_prob_row(prompt_id)
+                row += prompt_row * 1.5
+
+        # في وضع الحوار، ندمج رنين K_dialogue (pattern الحوار) مع K_sem (المعرفة)
+        if self.dialogue_mode and self.K_dialogue is not None:
+            dial_row = get_prob_row(last_id, self.K_dialogue)
+            n_ctx = min(3, len(context_ids))
+            for i in range(2, n_ctx + 1):
+                cid = context_ids[-i]
+                if cid is not None and cid < self.K_dialogue.shape[0]:
+                    ctx_row = get_prob_row(cid, self.K_dialogue)
+                    dial_row += ctx_row * (2.0 / i)
+            if len(context_ids) > 3:
+                prompt_id = context_ids[0]
+                if prompt_id is not None and prompt_id < self.K_dialogue.shape[0]:
+                    dial_row += get_prob_row(prompt_id, self.K_dialogue) * 1.5
+            # وزن ديناميكي: كلما كانت إشارة K_dialogue أقوى، زاد وزنها
+            dial_strength = dial_row.sum()
+            sem_strength = row.sum()
+            if dial_strength > 1e-10:
+                dial_weight = dial_strength / (dial_strength + sem_strength + 1e-10)
+                sem_weight = 1.0 - dial_weight
+                row = sem_weight * row + dial_weight * dial_row
+
+        order = np.argsort(row)[::-1]
+        for wid in order[:1500]:
+            if row[wid] <= 0:
+                continue
+            w = self.vocab.id2word.get(wid)
+            if not w or w in used_set or len(w) < 2:
+                continue
+            k_val = float(max(row[wid], 0.0))
+            gate = 0.0
+            w_pv = self._get_pv_fast(w)
+            n_ctx = min(3, len(all_pv))
+            if n_ctx > 0:
+                for cpv in all_pv[-n_ctx:]:
+                    act = float(np.exp(beta * phase_similarity(cpv[:self.old_semantic_dim], w_pv[:self.old_semantic_dim])))
+                    gate += k_val * act
+            if self.ram.size > 0:
+                ram_ctx = self.ram.retrieve_context(w_pv, max_words=2)
+                if ram_ctx:
+                    for cw in ram_ctx:
+                        cid2 = self.vocab.get(cw)
+                        if cid2 is not None and cid2 < self.K.shape[0] and wid < self.K.shape[1]:
+                            k2 = max(float(self.K[cid2, wid]), 0.0)
+                            cpv2 = self._get_pv_fast(cw)
+                            gate += 0.3 * k2 * float(np.exp(beta * phase_similarity(cpv2[:self.old_semantic_dim], w_pv[:self.old_semantic_dim])))
+            if is_particle(w) and len(context_ids) > 1:
+                gen_step = len(context_ids) - 1
+                penalty = max(0.01, 1.0 - gen_step * 0.25)
+                gate *= penalty
+            scores[w] = gate
+        sorted_w = sorted(scores, key=lambda w: -scores[w])[:self.top_k]
+        return sorted_w if sorted_w else []
+
+    def _beam_step(self, beams, used_sets, prompt_pv, step=0, total=12, k_B_cur=None, beta_cur=None, S=None):
+        new_beams = []
+        for words, used_set in zip(beams, used_sets):
+            all_pv = [self._get_pv_fast(w) for w in words]
+            context_ids = [self.vocab.word2id[w] for w in words if w in self.vocab.word2id]
+            prev_word = words[-1] if words else None
+            if len(words) >= 2 and hasattr(self, 'resonant_chain'):
+                _prev_freqs = []
+                for k in range(1, len(words)):
+                    wa, wb = words[k - 1], words[k]
+                    ma = self._dyn_mass(wa)
+                    mb = self._dyn_mass(wb)
+                    pva = self._get_pv_fast(wa)
+                    pvb = self._get_pv_fast(wb)
+                    _prev_freqs.append(self.resonant_chain.pair_freq(ma, mb, pva, pvb))
+            else:
+                _prev_freqs = None
+            candidates = self._resonance_candidates(context_ids, all_pv, used_set, beta_cur=beta_cur, prev_word=prev_word)
+            if not candidates:
+                continue
+            scored = [(self._score(w, used_set, all_pv, prompt_pv, len(words), len(words) + total,
+                                   words[-1] if words else None, context_ids, words, k_B_cur, beta_cur, S,
+                                   _prev_freqs=_prev_freqs), w)
+                      for w in candidates]
+            scored.sort(key=lambda x: -x[0])
+            for score, w in scored[:self.beam_width]:
+                if score > -0.1:
+                    new_beams.append((score, words + [w], used_set | {w}))
+        new_beams.sort(key=lambda x: -x[0])
+        return new_beams[:self.beam_width]
+
+    def _top_candidates(self, last_id, exclude):
+        if self.K is None or last_id is None or last_id >= self.K.shape[0]:
+            return []
+        row = self.K[last_id].toarray().ravel()
+        order = np.argsort(row)[::-1]
+        result = []
+        for wid in order:
+            w = self.vocab.id2word.get(wid)
+            if w and w not in exclude and len(w) >= 2 and row[wid] > 0:
+                result.append(w)
+                if len(result) >= self.top_k:
+                    break
+        return result
+
+    def _stepwise_generate(self, prompt, max_words=12):
+        mode = self.math_bridge.detect_mode(prompt)
+        prompt_tokens = [self.vocab.id2word[self.vocab.get(w)] for w in prompt.split() if self.vocab.get(w) is not None]
+        if not prompt_tokens:
+            return ""
+        boost, _ = self.math_bridge.get_resonance_boost([prompt])
+        expr_match = re.search(r'[\+\-]?\d+(\.\d+)?(\s*[+\-*/]\s*\d+(\.\d+)?)+', prompt)
+        if expr_match and mode == 'math':
+            eval_result = self.math_bridge.evaluate_math(expr_match.group())
+            if eval_result['valid']:
+                val_str = str(eval_result['value'])
+                if val_str.endswith('.0'):
+                    val_str = val_str[:-2]
+                return val_str
+        result = self.generate(prompt, max_words=max_words, mode='quantum', skip_bridge=True)
+        code_res = self.math_bridge.get_resonance_boost(result.split() if result else [])
+        if mode == 'code' and code_res[0] < 0:
+            pass
+        return result
+
+    def _update_k_dyn(self, words):
+        if not hasattr(self, 'K_dyn'): self.K_dyn = {}
+        for i in range(len(words)):
+            for j in range(i+1, min(i+6, len(words))):
+                id1, id2 = self.vocab.word2id.get(words[i]), self.vocab.word2id.get(words[j])
+                if id1 and id2:
+                    self.K_dyn[(id1, id2)] = self.K_dyn.get((id1, id2), 0.0) + 1.0
+                    self.K_dyn[(id2, id1)] = self.K_dyn.get((id2, id1), 0.0) + 1.0
+        for k in list(self.K_dyn.keys()):
+            self.K_dyn[k] *= 0.85
+            if self.K_dyn[k] < 0.1:
+                del self.K_dyn[k]
+
+    def generate(self, prompt, max_words=12, multi_pass=False, mode='standard', poetic_meter=None, poetic_rhyme=None, skip_bridge=False):
+        if prompt.strip().startswith(('/field', '/attract')) or mode in ('attract', 'field'):
+            parts = prompt.strip().split()
+            if prompt.strip().startswith(('/field', '/attract')):
+                target = parts[1] if len(parts) > 1 else ""
+            else:
+                target = parts[0] if len(parts) > 0 else ""
+
+            if target:
+                report = self.find_attraction_repulsion(target)
+                
+                res = f"### 🧲 حقل الجذب والتنافر الفيزيائي للكلمة: **{target}**\n\n"
+                res += "#### 🟢 كلمات متجاذبة دلالياً وفيزيائياً (توافق طوري الحروف):\n"
+                if report['attracted']:
+                    for w, score in report['attracted']:
+                        res += f"- **{w}** (قوة التجاذب: `+{score:.3f}`)\n"
+                else:
+                    res += "- (لا توجد كلمات متجاذبة)\n"
+                    
+                res += "\n#### 🔴 كلمات متنافرة دلالياً وفيزيائياً (تنافر طوري الحروف):\n"
+                if report['repelled']:
+                    for w, score in report['repelled']:
+                        res += f"- **{w}** (قوة التنافر: `{score:.3f}`)\n"
+                else:
+                    res += "- (لا توجد كلمات متنافرة)\n"
+                return res
+            else:
+                prefix = "/field " if prompt.strip().startswith(('/field', '/attract')) else ""
+                return f"يرجى كتابة كلمة للبحث عنها، مثال: `{prefix}علم`"
+
+        if not skip_bridge and self.math_bridge.detect_mode(prompt) in ('math', 'code'):
+            return self._stepwise_generate(prompt, max_words)
+        if mode == 'code':
+            return self._code_generate(prompt, max_words)
+
+        prompt_tokens = [self.vocab.id2word[self.vocab.get(w)] for w in prompt.split() if self.vocab.get(w) is not None]
+        if not prompt_tokens:
+            self.dialogue_memory.update(prompt, speaker="user")
+            # في وضع الحوار، نحاول التوليد من الصفر بدلاً من العودة فارغاً
+            if mode == 'dialogue' or mode == 'auto':
+                intent_result = self.intent_detector.detect(prompt)
+                if self.dialogue_engine.detect_need_for_dialogue(prompt)[0]:
+                    self.dialogue_mode = True
+                    try:
+                        topic_pv = self.dialogue_memory.get_context_pv()
+                        target_pv, _, _ = self.associative_memory.retrieve(intent_result['intent'], topic_pv)
+                        if target_pv is not None:
+                            self.prompt_field.field = 0.5 * target_pv
+                            self.prompt_field.strength = 1.5
+                        result = self._dialogue_generate([], prompt, max_words)
+                    finally:
+                        self.dialogue_mode = False
+                    return result
+            return ""
+        self.dialogue_memory.update(prompt, speaker="user")
+        # أثر التفاعل — مراقبة مدخل المستخدم
+        if hasattr(self, 'interaction_trace') and prompt.strip():
+            intent_result_trace = self.intent_detector.detect(prompt) if hasattr(self, 'intent_detector') else {'intent': 'STATEMENT'}
+            self.interaction_trace.observe(
+                prompt, intent=intent_result_trace.get('intent', 'STATEMENT'),
+                vocab=self.vocab, all_pv=self._all_pv)
+            # تحديث β بناءً على أنماط المستخدم
+            recommended_beta = self.interaction_trace.get_recommended_beta()
+            self.beta = (self.beta + recommended_beta) / 2.0
+        topic_pv = self.dialogue_memory.get_context_pv()
+        
+        # كشف التكرار — إذا كرر المستخدم سؤاله
+        is_repeat = self.dialogue_memory.is_repeat(prompt, threshold=0.75)
+        if is_repeat:
+            intent_before = self.intent_detector.detect(prompt)
+            self.associative_memory.penalize(intent_before['intent'], factor=0.5)
+            self.entropy.k_B *= 1.2  # زيادة الإنتروبيا لاستكشاف ردود جديدة
+        
+        self.response_planner.plan(prompt, topic_pv=topic_pv, max_words=max_words)
+        result_str = ""
+        if mode == 'poetic':
+            result_str = self._poetic_generate(prompt_tokens, max_words, poetic_meter or 'kamil', poetic_rhyme)
+        elif mode == 'wave':
+            result_str = self._wave_generate(prompt_tokens, max_words)
+        elif mode == 'quantum':
+            result_str = self._quantum_generate(prompt_tokens, max_words)
+        elif mode == 'multiverse':
+            result_str = self._multiverse_generate(prompt_tokens, max_words)
+        elif mode == 'code':
+            result_str = self._code_generate(prompt, max_words)
+        elif mode == 'dialogue':
+            result_str = self._dialogue_generate(prompt_tokens, prompt, max_words)
+        else:
+            prompt_pv = [self._get_pv_fast(w) for w in prompt_tokens]
+            self.prompt_field.absorb(prompt)
+            beams = [prompt_tokens[:]]
+            used_sets = [set(prompt_tokens)]
+            weak_steps = 0
+            k_B_cur = self.entropy.k_B
+            beta_cur = self.beta
+            S_cur = 0.0
+            min_generated = max(3, max_words // 4)
+            is_dialogue_gen = (mode == 'dialogue')
+            weak_threshold = 0.05 if is_dialogue_gen else 0.2
+            max_weak = 4 if is_dialogue_gen else 2
+            for step in range(max_words):
+                new = self._beam_step(beams, used_sets, prompt_pv, step=step, total=max_words, k_B_cur=k_B_cur, beta_cur=beta_cur, S=S_cur)
+                if not new: break
+                best = new[0]
+                generated_count = len(best[1]) - len(prompt_tokens)
+                if best[0] < weak_threshold:
+                    weak_steps += 1
+                    if weak_steps >= max_weak and generated_count >= min_generated: break
+                else:
+                    weak_steps = 0
+                beams = [b[1] for b in new]
+                used_sets = [b[2] for b in new]
+                beam_pvs = [self._get_pv_fast(w) for w in beams[0]]
+                target = self._target_phase(beam_pvs + prompt_pv)
+                beam_phase = [p[:self.old_semantic_dim] for p in beam_pvs]
+                S_cur = self.entropy.compute_S(beam_phase, target)
+                k_B_cur, beta_cur, _ = self.entropy.evaluate(beam_phase, target, k_B_cur, beta_cur)
+                _, _, is_int = self.pragmatic_engine.detect_intent_frame(prompt_tokens)
+                current_S_crit = 1.0 if is_int else self.entropy.S_crit
+                if S_cur <= current_S_crit: break
+                if hasattr(self, 'resonant_chain') and len(beams[0]) >= 3:
+                    m_seq = [self._dyn_mass(w) for w in beams[0]]
+                    pv_seq = [self._get_pv_fast(w) for w in beams[0]]
+                    coh = self.resonant_chain.sentence_coherence(m_seq, pv_seq)
+                    if coh < 0.3:
+                        beams[0].append(".")
+                        break
+                self.prompt_field.step()
+            output = beams[0][len(prompt_tokens):]
+            if output:
+                self.ram.observe(output)
+                if len(output) >= 3:
+                    self.ram.observe_sentence(prompt_tokens + output)
+                # تعزيز طوري لكل كلمة في التوليد الناجح
+                pvs_out = [self._get_pv_fast(w) for w in output if self._get_pv_fast(w) is not None]
+                if pvs_out:
+                    self.phase_reinforcement.reinforce_sentence(
+                        [w for w in output if self.vocab.word2id.get(w) is not None],
+                        pvs_out, reward=0.5)
+            result_str = ' '.join(output)
+        if result_str:
+            self._update_k_dyn(prompt_tokens + result_str.split())
+            self.dialogue_memory.update(result_str, speaker="system")
+            # ذاكرة هرمية — إضافة كلمات التوليد
+            if hasattr(self, 'hierarchical_memory'):
+                for w in result_str.split():
+                    wid = self.vocab.word2id.get(w)
+                    if wid is not None and wid < len(self._all_pv):
+                        self.hierarchical_memory.add_word(
+                            w, self._all_pv[wid], mass=self._dyn_mass(w))
+                # ضغط العبارة الحالية
+                if self.hierarchical_memory._phrase_word_count > 0:
+                    self.hierarchical_memory._flush_phrase()
+            # مشهد القصد — تكييف الآبار
+            if hasattr(self, 'intent_landscape') and self.intent_landscape.wells:
+                self.intent_landscape.adapt(prompt, result_str, self.vocab, self._all_pv)
+            # أثر التفاعل — مراقبة رد النظام
+            if hasattr(self, 'interaction_trace') and result_str.strip():
+                self.interaction_trace.observe(
+                    result_str, intent='RESPONSE',
+                    vocab=self.vocab, all_pv=self._all_pv)
+            # تطور طوري — تعزيز المتجهات المتوافقة
+            if hasattr(self, 'phase_evolution') and prompt_tokens and result_str:
+                result_words = result_str.split()
+                for i, rw in enumerate(result_words):
+                    rwid = self.vocab.word2id.get(rw)
+                    if rwid is not None and rwid < len(self._all_pv):
+                        for pw in prompt_tokens[-3:]:
+                            pwid = self.vocab.word2id.get(pw)
+                            if pwid is not None and pwid < len(self._all_pv):
+                                self.phase_evolution.observe_cooccurrence(
+                                    self._all_pv[pwid], self._all_pv[rwid],
+                                    w1_id=pwid, w2_id=rwid, distance=i+1)
+            intent_result = self.intent_detector.detect(prompt)
+            topic_pv = self.dialogue_memory.get_context_pv()
+            self.associative_memory.reinforce_from_generation(
+                intent_result['intent'], topic_pv, result_str
+            )
+        else:
+            self.dialogue_memory.update(prompt, speaker="user")
+        return result_str
+
+    def _sampling_beam_step(self, beams, used_sets, prompt_pv, step=0, total=12,
+                            k_B_cur=None, beta_cur=None, S=None, tau=0.5):
+        all_cands = []
+        examples = {}
+        for bi, (words, used_set) in enumerate(zip(beams, used_sets)):
+            all_pv = [self._get_pv_fast(w) for w in words]
+            context_ids = [self.vocab.word2id[w] for w in words if w in self.vocab.word2id]
+            prev_word = words[-1] if words else None
+            if len(words) >= 2 and hasattr(self, 'resonant_chain'):
+                _prev_freqs = []
+                for k in range(1, len(words)):
+                    wa, wb = words[k - 1], words[k]
+                    ma = self._dyn_mass(wa)
+                    mb = self._dyn_mass(wb)
+                    pva = self._get_pv_fast(wa)
+                    pvb = self._get_pv_fast(wb)
+                    _prev_freqs.append(self.resonant_chain.pair_freq(ma, mb, pva, pvb))
+            else:
+                _prev_freqs = None
+            candidates = self._resonance_candidates(context_ids, all_pv, used_set, beta_cur=beta_cur, prev_word=prev_word)
+            if not candidates:
+                continue
+            scored = [(self._score(w, used_set, all_pv, prompt_pv, len(words), len(words) + total,
+                                   words[-1] if words else None, context_ids, words, k_B_cur, beta_cur, S,
+                                   _prev_freqs=_prev_freqs), w)
+                      for w in candidates]
+            scored.sort(key=lambda x: -x[0])
+            for s, w in scored[:self.top_k]:
+                examples[w] = (words, used_set)
+                all_cands.append((s, w))
+        all_cands.sort(key=lambda x: -x[0])
+        top = all_cands[:50]
+        if not top:
+            return []
+        scores = np.array([s for s, _ in top])
+        scores = scores - scores.max()
+        probs = np.exp(scores / max(tau, 0.01))
+        probs = probs / probs.sum()
+        picks = {}
+        for _ in range(self.beam_width):
+            idx = self.rng.choice(len(top), p=probs)
+            s, w = top[idx]
+            picks.setdefault(w, []).append(s)
+        if not picks:
+            return []
+        result = []
+        for w, vs in picks.items():
+            words, used_set = examples[w]
+            result.append((max(vs), words + [w], used_set | {w}))
+        return result
+
+    def _single_pass(self, prompt_tokens, max_words, sample=False, tau=0.5):
+        prompt_pv = [self._get_pv_fast(w) for w in prompt_tokens]
+        beams = [prompt_tokens[:]]
+        used_sets = [set(prompt_tokens)]
+        weak_steps = 0
+        k_B_cur = self.entropy.k_B
+        beta_cur = self.beta
+        S_cur = 0.0
+        for step in range(max_words):
+            if sample:
+                new = self._sampling_beam_step(beams, used_sets, prompt_pv, step=step,
+                                               total=max_words, k_B_cur=k_B_cur, beta_cur=beta_cur, S=S_cur, tau=tau)
+            else:
+                new = self._beam_step(beams, used_sets, prompt_pv, step=step,
+                                      total=max_words, k_B_cur=k_B_cur, beta_cur=beta_cur, S=S_cur)
+            if not new:
+                break
+            best = new[0]
+            if best[0] < 0.2:
+                weak_steps += 1
+                if weak_steps >= 2:
+                    break
+            else:
+                weak_steps = 0
+            beams = [b[1] for b in new]
+            used_sets = [b[2] for b in new]
+            beam_pvs = [self._get_pv_fast(w) for w in beams[0]]
+            target = self._target_phase(beam_pvs + prompt_pv)
+            beam_phase = [p[:self.old_semantic_dim] for p in beam_pvs]
+            S_cur = self.entropy.compute_S(beam_phase, target)
+            k_B_cur, beta_cur, _ = self.entropy.evaluate(beam_phase, target, k_B_cur, beta_cur)
+        output = beams[0][len(prompt_tokens):]
+        return ' '.join(output) if output else None
+
+    def _quantum_generate(self, prompt_tokens, max_words=12):
+        collapsed_words = prompt_tokens[:]
+        prompt_pv = [self._get_pv_fast(w) for w in prompt_tokens]
+        superposition = [(0.0, [], set(prompt_tokens))]
+        quantum_capacity = 15
+        _, _, is_int = self.pragmatic_engine.detect_intent_frame(prompt_tokens)
+        current_S_crit = 1.0 if is_int else self.entropy.S_crit
+        logger.debug("_quantum_generate: prompt_tokens=%s | is_int=%s | S_crit=%s", prompt_tokens, is_int, current_S_crit)
+        for step in range(max_words):
+            new_superposition = []
+            for branch_score, words, used_set in superposition:
+                full_context = collapsed_words + words
+                all_pv = [self._get_pv_fast(w) for w in full_context]
+                context_ids = [self.vocab.word2id[w] for w in full_context if w in self.vocab.word2id]
+                prev_word = full_context[-1] if full_context else None
+                candidates = self._resonance_candidates(context_ids, all_pv, used_set, prev_word=prev_word)
+                scored_cands = []
+                for w in candidates[:40]:
+                    score = self._score(w, used_set, all_pv, prompt_pv, len(full_context), len(full_context)+10, prev_word, context_ids, full_context, self.entropy.k_B, self.beta, None)
+                    scored_cands.append((score, w))
+                scored_cands.sort(key=lambda x: -x[0])
+                for score, w in scored_cands[:8]:
+                    new_superposition.append((branch_score + score, words + [w], used_set | {w}))
+            if not new_superposition:
+                break
+            new_superposition.sort(key=lambda x: -x[0])
+            superposition = new_superposition[:quantum_capacity]
+            branch_ends = [b[1][-1] for b in superposition if b[1]]
+            if branch_ends:
+                beam_pvs = [self._get_pv_fast(w) for w in branch_ends]
+                target = self._target_phase(beam_pvs)
+                beam_phase = [p[:self.old_semantic_dim] for p in beam_pvs]
+                S_cur = self.entropy.compute_S(beam_phase, target)
+                if S_cur <= current_S_crit:
+                    best_branch = superposition[0]
+                    if is_int and len(best_branch[1]) < 3:
+                        pass
+                    else:
+                        collapsed_words.extend(best_branch[1])
+                        superposition = []
+                        break
+        if superposition and superposition[0][1]:
+            collapsed_words.extend(superposition[0][1])
+        output = collapsed_words[len(prompt_tokens):]
+        if output:
+            self.ram.observe(output)
+            if len(output) >= 3:
+                self.ram.observe_sentence(collapsed_words)
+        return ' '.join(output)
+
+    def _wave_generate(self, prompt_tokens, max_words=12):
+        """توليد عبر الشبكة التوليدية الفيزيائية — بحث مسار طيفي."""
+        if not hasattr(self, 'pgn') or not hasattr(self, 'spectral_coupling'):
+            return self._quantum_generate(prompt_tokens, max_words)
+        if not prompt_tokens:
+            return ""
+        path = self.pgn.find_path(
+            prompt_tokens, [], self.vocab, max_words=max_words)
+        if not path:
+            return self._quantum_generate(prompt_tokens, max_words)
+        output = path[:max_words]
+        if output:
+            self.ram.observe(output)
+        return ' '.join(output)
+
+    def _multiverse_generate(self, prompt_tokens, max_words=12):
+        prompt_pv = [self._get_pv_fast(w) for w in prompt_tokens]
+        superposition = [(0.0, [], set(prompt_tokens))]
+        quantum_capacity = 15
+        _pv_cache = {}
+        def _pv_cached(w):
+            if w not in _pv_cache:
+                _pv_cache[w] = self._get_pv_fast(w)
+            return _pv_cache[w]
+        _, _, is_int = self.pragmatic_engine.detect_intent_frame(prompt_tokens)
+        current_S_crit = 1.0 if is_int else self.entropy.S_crit
+        for step in range(max_words):
+            new_superposition = []
+            for branch_score, words, used_set in superposition:
+                full_context = prompt_tokens + words
+                all_pv = [_pv_cached(w) for w in full_context]
+                context_ids = [self.vocab.word2id[w] for w in full_context if w in self.vocab.word2id]
+                prev_word = full_context[-1] if full_context else None
+                candidates = self._resonance_candidates(context_ids, all_pv, used_set, prev_word=prev_word)
+                if not candidates and step > 0:
+                    new_superposition.append((branch_score, words, used_set))
+                    continue
+                scored_cands = []
+                for w in candidates[:20]:
+                    score = self._score(w, used_set, all_pv, prompt_pv, len(full_context), len(full_context)+10, prev_word, context_ids, full_context, self.entropy.k_B, self.beta, None)
+                    scored_cands.append((score, w))
+                scored_cands.sort(key=lambda x: -x[0])
+                for score, w in scored_cands[:5]:
+                    new_superposition.append((branch_score + score, words + [w], used_set | {w}))
+            if not new_superposition:
+                break
+            new_superposition.sort(key=lambda x: -x[0])
+            superposition = new_superposition[:quantum_capacity]
+        best_universe = None
+        best_entropy = float('inf')
+        for branch_score, words, _ in superposition:
+            if not words: continue
+            beam_pvs = [self._get_pv_fast(w) for w in words]
+            target = self._target_phase(beam_pvs)
+            beam_phase = [p[:self.old_semantic_dim] for p in beam_pvs]
+            S_cur = self.entropy.compute_S(beam_phase, target)
+            cohesion_penalty = 0
+            for i in range(1, len(words)):
+                if words[i] == words[i-1]:
+                    cohesion_penalty += 5.0
+            total_S = S_cur + cohesion_penalty - (branch_score * 0.1)
+            if total_S < best_entropy:
+                best_entropy = total_S
+                best_universe = words
+        output = best_universe if best_universe else []
+        if output:
+            self.ram.observe(output)
+            if len(output) >= 3:
+                self.ram.observe_sentence(prompt_tokens + output)
+        return ' '.join(output)
+
+    def _dialogue_generate(self, prompt_tokens, prompt_raw, max_words=12):
+        self.dialogue_mode = True
+
+        try:
+            intent_result = self.intent_detector.detect(prompt_raw)
+            intent = intent_result['intent']
+
+            architect_plan = self.response_architect.analyze_prompt(
+                prompt_raw, intent_result=intent_result)
+            trajectory = self.response_architect.build_response_trajectory(
+                architect_plan, vocab=self.vocab, all_pv=self._all_pv)
+            min_response_len = architect_plan.get('min_length', 2)
+            max_response_len = architect_plan.get('max_length', max_words)
+            max_words = max(max_words, max_response_len)
+
+            topic_pv = self.dialogue_memory.get_context_pv()
+            target_pv, assoc_conf, matched_intent = self.associative_memory.retrieve(intent, topic_pv)
+            if target_pv is not None:
+                self.prompt_field.field = 0.5 * target_pv
+                self.prompt_field.strength = min(2.0, 0.5 + assoc_conf)
+
+            prompt_pv = [self._get_pv_fast(w) for w in prompt_tokens]
+
+            pattern_response = None
+            pattern_intent = intent_result.get('intent', 'STATEMENT')
+            if pattern_intent in self.response_architect.pattern_db:
+                for pattern in self.response_architect.pattern_db[pattern_intent]:
+                    trigger_words = pattern['trigger'].split()
+                    match_count = sum(1 for tw in trigger_words if tw in prompt_raw.split())
+                    if match_count >= len(trigger_words) * 0.5:
+                        pattern_response = pattern['response']
+                        break
+
+            if pattern_response:
+                pattern_words = pattern_response.split()
+                if all(w in self.vocab.word2id for w in pattern_words):
+                    result = ' '.join(pattern_words)
+                    if result:
+                        self.ram.observe(pattern_words)
+                        self.dialogue_memory.update(result, speaker='system')
+                    return result
+
+            beams = [prompt_tokens[:]]
+            used_sets = [set(prompt_tokens)]
+            k_B_cur = self.entropy.k_B
+            beta_cur = self.beta
+            S_cur = 0.0
+            weak_steps = 0
+            min_generated = max(2, min_response_len)
+            weak_threshold = 0.05
+            max_weak = 4
+
+            for step in range(max_response_len):
+                if trajectory and step < len(trajectory):
+                    guidance = self.response_architect.get_guidance_for_step(
+                        trajectory, step, max_response_len)
+                    if guidance and guidance.get('target_pv') is not None:
+                        self.prompt_field.field = 0.3 * guidance['target_pv'] + 0.7 * self.prompt_field.field
+                        self.prompt_field.strength = guidance.get('tightness', 0.5)
+
+                new = self._beam_step(beams, used_sets, prompt_pv, step=step,
+                                      total=max_response_len, k_B_cur=k_B_cur,
+                                      beta_cur=beta_cur, S=S_cur)
+                if not new and step >= min_generated:
+                    break
+                if not new:
+                    continue
+                best = new[0]
+                generated_count = len(best[1]) - len(prompt_tokens)
+
+                if best[0] < weak_threshold:
+                    weak_steps += 1
+                    if weak_steps >= max_weak and generated_count >= min_generated:
+                        break
+                else:
+                    weak_steps = 0
+
+                beams = [b[1] for b in new]
+                used_sets = [b[2] for b in new]
+                beam_pvs = [self._get_pv_fast(w) for w in beams[0]]
+                target = self._target_phase(beam_pvs + prompt_pv)
+                beam_phase = [p[:self.old_semantic_dim] for p in beam_pvs]
+                S_cur = self.entropy.compute_S(beam_phase, target)
+                k_B_cur, beta_cur, _ = self.entropy.evaluate(beam_phase, target, k_B_cur, beta_cur)
+                self.prompt_field.step()
+
+            output = beams[0][len(prompt_tokens):]
+
+            if len(output) < min_generated:
+                fallback_words = []
+                for pt in prompt_tokens[:3]:
+                    ptid = self.vocab.word2id.get(pt)
+                    if ptid is not None and self.K_sem is not None and ptid < self.K_sem.shape[0]:
+                        row = self.K_sem[ptid].toarray().ravel()
+                        top_ids = np.argsort(row)[-20:]
+                        for tid in top_ids:
+                            tw = self.vocab.id2word.get(tid, '')
+                            if len(tw) >= 2 and tw not in fallback_words and tw not in prompt_tokens:
+                                fallback_words.append(tw)
+                                if len(fallback_words) >= max(min_generated, 3):
+                                    break
+                if fallback_words and len(output) < min_generated:
+                    output.extend(fallback_words[:min_generated - len(output)])
+
+            result = ' '.join(output)
+            if output:
+                self.ram.observe(output)
+                self.dialogue_memory.update(result, speaker='system')
+
+        finally:
+            self.dialogue_mode = False
+
+        return result
+
+
+    def _code_generate(self, prompt, max_tokens=30):
+        """توليد كود Python باستخدام CodeEngine + بوابة نحوية."""
+        if self.code_engine is None:
+            from src.physics.code_engine import CodeEngine, build_K_code
+            self.code_engine = CodeEngine()
+            if hasattr(self, 'corpus_texts') and self.corpus_texts:
+                try:
+                    cv, ck = build_K_code(list(self.corpus_texts))
+                    self.code_engine = CodeEngine(code_vocab=cv, K_code=ck)
+                except Exception:
+                    pass
+        result = self.code_engine.generate_python(prompt, max_tokens)
+        return result
+
+    def _poetic_generate(self, prompt_tokens, max_words=12, meter='kamil', rhyme=None):
+        collapsed_words = prompt_tokens[:]
+        prompt_pv = [self._get_pv_fast(w) for w in prompt_tokens]
+        superposition = [(0.0, [], set(prompt_tokens), 0)]
+        quantum_capacity = 25
+        for step in range(max_words):
+            new_superposition = []
+            for branch_score, words, used_set, rhythm_pos in superposition:
+                full_context = collapsed_words + words
+                all_pv = [self._get_pv_fast(w) for w in full_context]
+                context_ids = [self.vocab.word2id[w] for w in full_context if w in self.vocab.word2id]
+                prev_word = full_context[-1] if full_context else None
+                candidates = self._resonance_candidates(context_ids, all_pv, used_set, prev_word=prev_word)
+                for w in candidates[:15]:
+                    base_score = self._score(w, used_set, all_pv, prompt_pv, len(full_context), max_words, prev_word, context_ids, full_context, self.entropy.k_B, self.beta, None)
+                    rhythm_res, next_rhythm_pos = self.poetic_engine.compute_rhythmic_resonance(w, rhythm_pos, meter)
+                    poetic_score = self.W.get('poetic', 0.0) * rhythm_res
+                    rhyme_score = 0.0
+                    if rhyme and step == max_words - 1:
+                        rhyme_res = self.poetic_engine.compute_rhyme_gravity(w, rhyme)
+                        rhyme_score = self.W.get('rhyme', 0.0) * rhyme_res
+                    if rhythm_res > 0.8:
+                        base_score += 0.5
+                    total_score = base_score + poetic_score + rhyme_score
+                    new_superposition.append((branch_score + total_score, words + [w], used_set | {w}, next_rhythm_pos))
+            if not new_superposition:
+                break
+            new_superposition.sort(key=lambda x: -x[0])
+            superposition = new_superposition[:quantum_capacity]
+            branch_ends = [b[1][-1] for b in superposition if b[1]]
+            if branch_ends:
+                beam_pvs = [self._get_pv_fast(w) for w in branch_ends]
+                target = self._target_phase(beam_pvs)
+                beam_phase = [p[:self.old_semantic_dim] for p in beam_pvs]
+                S_cur = self.entropy.compute_S(beam_phase, target)
+                if S_cur <= self.entropy.S_crit:
+                    best_branch = superposition[0]
+                    collapsed_words.extend(best_branch[1])
+                    superposition = [(0.0, [], best_branch[2], best_branch[3])]
+        if superposition and superposition[0][1]:
+            collapsed_words.extend(superposition[0][1])
+        output = collapsed_words[len(prompt_tokens):]
+        return ' '.join(output)
+
+    def get_physics_report(self, prompt, result):
+        if not result:
+            return {}
+        all_words = prompt.split() + result.split()
+        pvs = []
+        masses = []
+        weight_labels = []
+        for w in all_words:
+            pv = self._get_pv_fast(w)
+            pvs.append(pv)
+            masses.append(compute_word_mass(w))
+            wgt = self.weight_resonance.get_weight(w)
+            weight_labels.append(wgt or "—")
+        phase_angles = []
+        for i, w in enumerate(all_words):
+            pv = pvs[i]
+            angle = float(np.arctan2(pv[1], pv[0])) if abs(pv[0]) > 1e-10 else 0.0
+            phase_angles.append(round(angle / (2 * np.pi) % 1.0, 4))
+        target = self._target_phase(pvs)
+        alignments = []
+        for pv in pvs:
+            align = phase_similarity(pv[:self.old_semantic_dim], target[:self.old_semantic_dim])
+            tag = "متوافق" if align > 0.3 else ("منحرف" if align > 0.0 else "متضاد")
+            alignments.append(f"{tag}_{align:.2f}")
+        morph_agg = {}
+        for lbl in weight_labels:
+            if lbl != "—":
+                morph_agg[lbl] = morph_agg.get(lbl, 0) + 1
+        return {
+            "word_masses": {w: round(m, 4) for w, m in zip(all_words, masses)},
+            "phase_angles": phase_angles,
+            "alignments": alignments,
+            "morph_weights": morph_agg,
+            "ram_size": self.ram.size,
+            "vocab_size": self.V,
+            "top_k": all_words,
+        }
+
+    def judge_output(self, text):
+        if not text:
+            return 0.0
+        words = text.split()
+        if len(words) < 3:
+            return 0.0
+        irab_score = IrabEngine.score_sentence(words)
+        stype = ArabicGrammar.detect_sentence_type(words)
+        stype_score = 0.2 if stype != "غير معروف" else 0.0
+        has_verb = any(ArabicGrammar.is_verb_like(w) for w in words)
+        has_noun = any(ArabicGrammar.is_noun_like(w) for w in words)
+        structural_score = 0.0
+        if stype == "فعلية":
+            if has_verb and has_noun:
+                structural_score = 0.15
+            elif has_verb:
+                structural_score = 0.08
+        elif stype == "اسمية":
+            if has_noun:
+                structural_score = 0.12
+        return min(irab_score + stype_score + structural_score, 1.0)
+
+    def load_benchmark_vocab(self):
+        """تحميل الكلمات المصغرة لمعجم المعايرة."""
+        import json
+        import os
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "benchmark_vocab.json")
+        if os.path.exists(path):
+            try:
+                with open(path, encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        # Default list of words if file doesn't exist
+        defaults = [
+            "تدفق", "جود", "كرم", "تكرار", "تحليق", "جمود", "حبس", "منع", "بخل", "سقوط",
+            "حنان", "رفعة", "قسوة", "هبوط", "تقدم", "تهجم", "هجوم", "تدحرج", "تراجع", "دفاع",
+            "ايلام", "توجع", "تقهقر", "راحة", "دك", "تشبع", "نقل", "حمل", "تفريغ",
+            "بعثرة", "تشتت", "تثبيط", "تجميع", "تركيز", "بناء", "قذف", "رص", "ترتيب", "هدم", "فوضى",
+            "وضوح", "تبيين", "خلق", "انشاء", "غموض", "فناء", "جمع", "جذب", "التحام", "تفرقة", "تنافر", "انفصال",
+            "حث", "حياة", "انتعاش", "خمول", "موت", "ذبول", "خرق", "خبيئة", "التئام", "ظهور"
+        ]
+        # ensure data directory exists
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(defaults, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+        return defaults
+
+    def find_attraction_repulsion(self, target_word: str, vocab_type: str = "full", use_hebbian: bool = False, top_k: int = 10):
+        """يبحث عن الكلمات المنجذبة والمنفرة للكلمة المستهدفة بناءً على فيزياء الحروف (الـ 22 بعد الأولى)."""
+        # الحصول على المتجه الطوري للحروف للكلمة المستهدفة
+        target_pv = compute_word_phase_vector(target_word)
+        n_t = np.linalg.norm(target_pv)
+        if n_t < 1e-10:
+            return {"attracted": [], "repelled": []}
+            
+        words_to_score = []
+        
+        if vocab_type == "benchmark":
+            benchmark_words = self.load_benchmark_vocab()
+            for w in benchmark_words:
+                if w == target_word or len(w) < 2 or w in target_word or target_word in w:
+                    continue
+                wid = self.vocab.word2id.get(w)
+                if wid is not None and wid < len(self._all_pv):
+                    v = self._all_pv[wid, :22]
+                else:
+                    v = compute_word_phase_vector(w)
+                words_to_score.append((w, v))
+        else:
+            for wid, w in self.vocab.id2word.items():
+                if w == target_word or len(w) < 2 or w in target_word or target_word in w:
+                    continue
+                if wid < len(self._all_pv):
+                    v = self._all_pv[wid, :22]
+                    words_to_score.append((w, v))
+                    
+        if not words_to_score:
+            return {"attracted": [], "repelled": []}
+            
+        scored = []
+        for w, v in words_to_score:
+            n_v = np.linalg.norm(v)
+            if n_v < 1e-10:
+                similarity = 0.0
+            else:
+                similarity = float(np.dot(v, target_pv) / (n_v * n_t))
+                
+            if use_hebbian and self.K_sem is not None:
+                tid = self.vocab.word2id.get(target_word)
+                wid = self.vocab.word2id.get(w)
+                if tid is not None and wid is not None:
+                    row_idx = tid
+                    col_idx = wid
+                    if row_idx < self.K_sem.shape[0] and col_idx < self.K_sem.shape[1]:
+                        h_val = float(self.K_sem[row_idx, col_idx])
+                        h_boost = float(np.tanh(h_val)) * 0.5
+                        similarity = 0.5 * similarity + h_boost
+                        
+            scored.append((w, similarity))
+            
+        scored.sort(key=lambda x: -x[1])
+        
+        attracted = scored[:top_k]
+        repelled = list(reversed(scored[-top_k:]))
+        
+        return {
+            "attracted": attracted,
+            "repelled": repelled
+        }
