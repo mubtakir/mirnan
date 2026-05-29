@@ -153,4 +153,17 @@ class TestV8Features:
         assert orch.generate("ما مجموع 1 + 5") == "6"
         assert orch.generate("10 - 2") == "8"
 
+    def test_creative_mode_no_repetition(self):
+        vocab, K, syntax = synchronize(["تخيل مدينة في السماء مبدأ بدلاً منها"])
+        gen = Generator(vocab, K, syntax_field=syntax)
+        
+        # Generate with creative mode
+        res = gen.generate("تخيل مدينة في السماء", max_words=10, mode='creative')
+        words = res.split()
+        if words:
+            # Check there are no consecutive repeats of content words
+            for i in range(len(words) - 1):
+                assert words[i] != words[i+1], f"Repeated word found: {words[i]}"
+
+
 

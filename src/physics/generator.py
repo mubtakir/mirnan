@@ -2065,6 +2065,8 @@ class Generator:
             for w in collapsed_words:
                 self.refractory.deplete(self._get_pv_fast(w))
 
+        used_set = set(prompt_tokens)
+
         for step in range(max_words):
             all_pv = [self._get_pv_fast(w) for w in collapsed_words]
             ctx_masses = [self._dyn_mass(w) for w in collapsed_words]
@@ -2077,7 +2079,7 @@ class Generator:
             else:
                 bound_words, bound_pvs, bound_masses = collapsed_words, all_pv, ctx_masses
             
-            candidates = self._resonance_candidates(context_ids, all_pv, set(), prev_word=prev_word)
+            candidates = self._resonance_candidates(context_ids, all_pv, used_set, prev_word=prev_word)
             if not candidates: break
                 
             scores = []
@@ -2096,7 +2098,7 @@ class Generator:
                 else:
                     w_pv_creative = w_pv
                 
-                base_score = self._score(w, set(), all_pv, None, len(collapsed_words), max_words, prev_word, context_ids, collapsed_words, self.entropy.k_B, self.beta, None)
+                base_score = self._score(w, used_set, all_pv, None, len(collapsed_words), max_words, prev_word, context_ids, collapsed_words, self.entropy.k_B, self.beta, None)
                 
                 # إضافة جاذبية التشابك الكمي
                 entanglement_score = 0.0
@@ -2129,6 +2131,7 @@ class Generator:
                 chosen_word = candidates[np.argmax(scores)]
                 
             collapsed_words.append(chosen_word)
+            used_set.add(chosen_word)
             chosen_pv = self._get_pv_fast(chosen_word)
             
             if hasattr(self, 'refractory'):
