@@ -1,21 +1,20 @@
 """مرنان — محرك توليد نصوص فيزيائي (Physics-Inspired Language Engine).
 
-V6 — Physics Orchestrator
-==========================
-47 وحدة فيزيائية، 26 ابتكاراً، 108 اختبارات، 0 تراجعات.
+V8 — Partonic Resonance
+========================
+4 تحسينات فيزيائية محورية:
+- QuantumDensityMatrix: بديل np.average للسياق — يحافظ على العلاقات البينية
+- CausalFlowField: حقل تدفق سببي مستمر للاستدلال المنطقي
+- Partonic Separation: فصل النواة الحرفية عن الغلاف الدلالي
+- Hierarchical Modulation: تعديل موجي AM/FM عبر 4 مستويات
 
 المبادئ:
 - الحرف = مذبذب بتردد ذاتي ω₀
 - الكلمة = حزمة موجية (wave packet) من تداخل المذبذبات
 - المعنى = رنين طوري + اقتران ديناميكي (DCCF)
 - التعلم = تعزيز طوري ذاتي (PhaseReinforcement) — لا backprop
-
-الوحدات الجديدة في V6:
-- dccf: Dynamic Contextual Coupling Field — بديل self-attention
-- ppm: Prompt Phase Modulation — In-Context Learning فيزيائي
-- amfs: Adaptive Mass & Frequency Shift — contextual embeddings
-- orchestrator: PhysicsOrchestrator — موحّد مركزي
-- phase_reinforcement: تعزيز طوري ذاتي
+- السياق = مصفوفة كثافة كمومية (ρ = Σ pᵢ|ψᵢ⟩⟨ψᵢ|)
+- المنطق = حقل تدفق سببي (J(pv) = Σ Cᵢ·(pv_target - pv))
 """
 
 from src.physics.constants import (
@@ -81,3 +80,5 @@ from src.physics.spectral_wave_engine import (
     adaptive_context_filter,
     wave_signature,
 )
+from src.physics.density_matrix import QuantumDensityMatrix
+from src.physics.causal_flow import CausalFlowField

@@ -94,6 +94,8 @@ from src.physics.advanced_engines import (
 from src.physics.chaos_and_entanglement import (
     ThermalChaosEngine, QuantumEntanglementEngine, MolecularBinder
 )
+from src.physics.density_matrix import QuantumDensityMatrix
+from src.physics.causal_flow import CausalFlowField
 
 logger = logging.getLogger(__name__)
 
@@ -301,7 +303,21 @@ class Generator:
         self.phase_acc = PhaseAccumulator()
         self.refractory = RefractoryGate()
         self.macro_engine = MacroWaveEngine()
-        
+
+        # ═══ V8: مصفوفة الكثافة الكمومية — بديل np.average للسياق ═══
+        _dm_cfg = self.config.get('density_matrix', {})
+        self.density_matrix = QuantumDensityMatrix(
+            dim=TOTAL_DIM,
+            decay_rate=_dm_cfg.get('decay_rate', 0.8),
+        )
+        # ═══ V8: حقل التدفق السببي — استدلال منطقي مستمر ═══
+        _cf_cfg = self.config.get('causal_flow', {})
+        self.causal_flow = CausalFlowField(
+            causal_engine=self.causal_engine,
+            dim=TOTAL_DIM,
+            flow_strength=_cf_cfg.get('strength', 1.0),
+        )
+
         self.W = self._init_weights()
 
     def set_cascade(self, enabled, lambda_cascade=1.8):
@@ -411,6 +427,10 @@ class Generator:
         raw_trace = cfg_w.get('trace', 0.50)
         raw_relational = cfg_w.get('relational', 1.00)
         raw_architect = cfg_w.get('architect', 3.00)
+        raw_density_resonance = cfg_w.get('density_resonance', 3.00)
+        raw_partonic_cross = cfg_w.get('partonic_cross', 2.00)
+        raw_causal_flow_align = cfg_w.get('causal_flow_align', 2.50)
+        raw_hierarchical_mod = cfg_w.get('hierarchical_mod', 2.00)
         pos_terms = [raw_align, raw_prompt, raw_diversity, raw_syntax,
                      raw_resonance, raw_symbolic, raw_morpho,
                      raw_morpho_trans, raw_sentence, raw_pos_alt, raw_irab,
@@ -431,7 +451,8 @@ class Generator:
                       raw_syn, raw_sem, raw_conc, raw_causal, raw_resonant_chain,
                       raw_dccf, raw_ppm, raw_amfs, raw_cascade, raw_dialogue, raw_category, raw_contextual_spectra,
                       raw_trajectory, raw_hierarchical, raw_intent_landscape, raw_trace, raw_relational,
-                      raw_architect]
+                      raw_architect, raw_density_resonance, raw_partonic_cross, raw_causal_flow_align,
+                      raw_hierarchical_mod]
         pos_sum = sum(pos_terms)
         scale = 0.95 / pos_sum
         return {
@@ -498,6 +519,10 @@ class Generator:
             'trace': raw_trace * scale,
             'relational': raw_relational * scale,
             'architect': raw_architect * scale,
+            'density_resonance': raw_density_resonance * scale,
+            'partonic_cross': raw_partonic_cross * scale,
+            'causal_flow_align': raw_causal_flow_align * scale,
+            'hierarchical_mod': raw_hierarchical_mod * scale,
         }
 
     def _get_pv(self, word):
@@ -594,6 +619,148 @@ class Generator:
         field_strength = grav_forces * phase_aligns
         total_field = np.sum(field_strength)
         return float(total_field) / max(float(n_words), 1.0)
+
+    # ═══ V8: الرنين الجسيمي — فصل التشابه الحرفي عن الدلالي ═══
+    def _partonic_resonance(self, w_pv, context_pvs):
+        """فصل الأطوار الجسيمي: نواة دلالية منفصلة عن غلاف طيفي.
+
+        يعيد ثلاث درجات:
+        - core_sim: تشابه النواة (حروف + جذر + إضافي: dims 0:36)
+        - sem_sim: تشابه الغلاف (دلالي + تداولي: dims 42:64)
+        - cross_coherence: اتساق النواة مع الغلاف (يمنع الالتباس)
+        """
+        if not context_pvs:
+            return {'core_sim': 0.0, 'sem_sim': 0.0, 'cross_coherence': 0.0}
+
+        w_core = w_pv[:self.old_semantic_dim]
+        w_core_norm = np.linalg.norm(w_core)
+        w_sem = w_pv[self.sem_start:]
+        w_sem_norm = np.linalg.norm(w_sem)
+
+        core_sims = []
+        sem_sims = []
+
+        weights = np.exp(-0.8 * np.arange(len(context_pvs)))[::-1]
+        weights = weights / weights.sum()
+
+        for i, cpv in enumerate(context_pvs):
+            c_core = cpv[:self.old_semantic_dim]
+            c_sem = cpv[self.sem_start:]
+            c_core_norm = np.linalg.norm(c_core)
+            c_sem_norm = np.linalg.norm(c_sem)
+
+            cs = 0.0
+            if w_core_norm > 1e-10 and c_core_norm > 1e-10:
+                cs = float(np.dot(w_core, c_core) / (w_core_norm * c_core_norm))
+            core_sims.append(cs * weights[i])
+
+            ss = 0.0
+            if w_sem_norm > 1e-10 and c_sem_norm > 1e-10:
+                ss = float(np.dot(w_sem, c_sem) / (w_sem_norm * c_sem_norm))
+            sem_sims.append(ss * weights[i])
+
+        core_sim = float(np.sum(core_sims))
+        sem_sim = float(np.sum(sem_sims))
+
+        # cross_coherence: هل النواة والغلاف متسقان؟
+        # كلمة مثل "علم" و"لمع" لهما core متشابه لكن sem مختلف
+        # cross_coherence المنخفض = علامة التباس
+        cross_coherence = 1.0 - abs(core_sim - sem_sim)
+
+        return {
+            'core_sim': max(0.0, core_sim),
+            'sem_sim': max(0.0, sem_sim),
+            'cross_coherence': max(0.0, cross_coherence),
+        }
+
+    # ═══ V8: رنين مصفوفة الكثافة الكمومية ═══
+    def _density_resonance(self, pv_list, candidate_pv, dims=None):
+        """قياس رنين المرشح مع الحالة الكمومية المختلطة للسياق.
+
+        بدلاً من np.average(pvs) الذي يدمج كل شيء إتلافياً،
+        نبني مصفوفة كثافة ρ = Σ pᵢ |ψᵢ⟩⟨ψᵢ|
+        ونقيس R = ⟨ψ_cand| ρ |ψ_cand⟩
+
+        هذا يحافظ على مساهمات كل كلمة سياقية منفردة.
+        """
+        if not pv_list:
+            return 0.0
+        self.density_matrix.build(pv_list, dims=dims)
+        return self.density_matrix.resonance(candidate_pv, dims=dims)
+
+    # ═══ V8: محاذاة حقل التدفق السببي ═══
+    def _causal_flow_alignment(self, candidate_pv, current_pv, context_ids, context_pvs):
+        """درجة توافق المرشح مع اتجاه التدفق السببي.
+
+        إذا كان السياق يشير إلى علاقة سببية (مثلاً "أكبر من")،
+        فالتدفق السببي يدفع باتجاه الكلمات المتناغمة سببياً.
+        """
+        if not context_ids or not context_pvs:
+            return 0.0
+
+        flow = self.causal_flow.compute_flow(
+            current_pv, context_pvs, context_ids, self.vocab,
+            causal_matrix=self.causal_engine.causal_K if self.causal_engine else None,
+            word_to_pv_fn=self._get_pv_fast,
+        )
+        return self.causal_flow.flow_alignment_score(
+            candidate_pv, current_pv, flow['flow_vector'],
+        )
+
+    # ═══ V8: تعديل هرمي موجي — AM/FM بين مستويات الذاكرة ═══
+    def _hierarchical_modulation(self, w_pv):
+        """تعديل موجي هرمي: تقييم المرشح عبر 4 مستويات الضغط الطيفي.
+
+        يحاكي الطبقات العميقة في LLMs:
+        - المستوى 1 (كلمات): تعديل سريع — تشابه طوري مباشر
+        - المستوى 2 (عبارات): موجة حاملة — سياق الجملة
+        - المستوى 3 (فقرات): تعديل السعة — جو الفقرة
+        - المستوى 4 (محادثة): موجة الغلاف — السمة العامة
+
+        النتيجة = cos(core, level_1) · level_2 · level_3 · level_4
+        (تعديل متتالي AM/FM)
+        """
+        if not hasattr(self, 'hierarchical_memory'):
+            return 0.0
+        hm = self.hierarchical_memory
+        if not hm.word_level.entries:
+            return 0.0
+
+        from src.physics.word_physics import phase_similarity
+
+        # مستوى الكلمات: طور مباشر
+        word_ctx = hm.word_level.get_context_pv()
+        word_norm = np.linalg.norm(word_ctx)
+        w_norm = np.linalg.norm(w_pv)
+        if word_norm < 1e-10 or w_norm < 1e-10:
+            return 0.0
+        word_res = phase_similarity(w_pv[:PHASE_DIM], word_ctx[:PHASE_DIM])
+
+        # مستوى العبارات: موجة حاملة — تعديل السعة (FM)
+        phrase_ctx = hm.phrase_level.get_context_pv()
+        phrase_res = 0.5
+        if np.linalg.norm(phrase_ctx) > 1e-10:
+            phrase_res = phase_similarity(w_pv[self.sem_start:self.sem_start + 8],
+                                           phrase_ctx[self.sem_start:self.sem_start + 8])
+            phrase_res = 0.5 + 0.5 * phrase_res  # مقياس 0.5-1.0
+
+        # مستوى الفقرات: تعديل إضافي
+        para_ctx = hm.paragraph_level.get_context_pv()
+        para_res = 0.5
+        if np.linalg.norm(para_ctx) > 1e-10:
+            para_res = phase_similarity(w_pv[:PHASE_DIM], para_ctx[:PHASE_DIM])
+            para_res = 0.5 + 0.5 * para_res
+
+        # مستوى المحادثة: موجة الغلاف — التعديل الأبطأ
+        conv_ctx = hm.conversation_level.get_context_pv()
+        conv_res = 0.5
+        if np.linalg.norm(conv_ctx) > 1e-10:
+            conv_res = phase_similarity(w_pv[self.sem_start:], conv_ctx[self.sem_start:])
+            conv_res = 0.5 + 0.5 * conv_res
+
+        # تعديل AM/FM متتالي
+        modulation = word_res * phrase_res * para_res * conv_res
+        return float(modulation)
 
     def _score(self, word, used, all_pv, prompt_pv, gen_pos=0, total_pos=1, prev_word=None, context_ids=None, context_words=None, k_B_cur=None, beta_cur=None, S=None, _prev_freqs=None, _osc_ctx=None):
         wid = self.vocab.word2id.get(word)
@@ -1097,6 +1264,24 @@ class Generator:
                 word_to_pv_fn=self._get_pv_fast,
             )
         score += self.W.get('cascade', 0.0) * cascade_score
+
+        # ═══ V8.1: فصل الأطوار الجسيمي — نواة دلالية vs غلاف طيفي ═══
+        partonic = self._partonic_resonance(w_pv, all_pv)
+        score += self.W.get('partonic_cross', 0.0) * partonic['cross_coherence']
+
+        # ═══ V8.2: رنين مصفوفة الكثافة الكمومية ═══
+        density_resonance_score = self._density_resonance(all_pv, w_pv)
+        score += self.W.get('density_resonance', 0.0) * density_resonance_score
+
+        # ═══ V8.3: محاذاة حقل التدفق السببي ═══
+        causal_flow_score = self._causal_flow_alignment(
+            w_pv, all_pv[-1] if len(all_pv) > 0 else w_pv,
+            context_ids, all_pv)
+        score += self.W.get('causal_flow_align', 0.0) * causal_flow_score
+
+        # ═══ V8.4: تعديل هرمي موجي AM/FM ═══
+        hierarchical_mod_score = self._hierarchical_modulation(w_pv)
+        score += self.W.get('hierarchical_mod', 0.0) * hierarchical_mod_score
 
         score = float(np.clip(score, -5.0, 5.0))
 

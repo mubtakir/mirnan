@@ -137,7 +137,7 @@ scoring_weights:
   syn: 0.0                  # K_syn (مدمج في k_coupling)
   sem: 0.0                  # K_sem (مدمج في k_coupling)
   conc: 0.0                 # K_conc (مدمج في k_coupling)
-  causal: 0.0               # السببية
+  causal: 2.00               # السببية (مُفعَّلة V8)
   dccf: 3.0                 # DCCF — بديل self-attention (مُفعَّل)
   ppm: 0.0                  # تعديل الطور
   amfs: 0.0                 # التحول التكيفي
@@ -160,6 +160,10 @@ scoring_weights:
   trace: 0.50               # أثر التفاعل
   relational: 1.00           # K علاقية
   architect: 3.00             # بناء معماري للرد
+  density_resonance: 3.00   # V8: رنين مصفوفة الكثافة الكمومية
+  partonic_cross: 2.00      # V8: فصل الأطوار الجسيمي (cross-coherence)
+  causal_flow_align: 2.50   # V8: محاذاة حقل التدفق السببي
+  hierarchical_mod: 2.00    # V8: تعديل هرمي موجي AM/FM
 
 # ═══ محرك التغاير الترددي (Heterodyne) ═══
 heterodyne:
@@ -182,3 +186,12 @@ creative:
   tunnel_prob: 0.05          # احتمال النفق الكمومي (قفز مجازي)
   perturbation: 0.15         # شدة الاضطراب الطوري
   quantum_capacity: 25       # سعة التراكب الكمومي
+
+# ═══ V8: مصفوفة الكثافة الكمومية — بديل متوسط المتجهات ═══
+density_matrix:
+  decay_rate: 0.8             # سرعة اضمحلال الأهمية الموضعية
+
+# ═══ V8: حقل التدفق السببي — استدلال منطقي مستمر ═══
+causal_flow:
+  strength: 1.0               # شدة تيار التدفق (γ)
+  transitive_depth: 3         # عمق الاستدلال التعددي

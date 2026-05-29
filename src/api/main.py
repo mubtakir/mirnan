@@ -1,6 +1,6 @@
-"""mirnan V7 API — Physics Orchestrator Backend + SIO.
+"""mirnan V8 API — Partonic Resonance Backend + SIO.
 
-يدعم 8 أنماط توليد (standard, quantum, multiverse, wave, poetic, creative, code, dialogue) + تحكم فيزيائي حي + ذكاء توليفي.
+يدعم 10 أنماط توليد + 4 تحسينات فيزيائية (DM, PPS, CFF, HWM) + تحكم فيزيائي حي + ذكاء توليفي.
 """
 
 import os, sys, time
@@ -21,7 +21,7 @@ import model as mirnan_model
 from src.physics.generator import Generator
 from src.physics.orchestrator import PhysicsOrchestrator
 
-app = FastAPI(title="mirnan V7 API", description="Physics Orchestrator — Dynamic Model + SIO")
+app = FastAPI(title="mirnan V8 API", description="Partonic Resonance — DM · PPS · CFF · HWM")
 
 app.add_middleware(
     CORSMiddleware,
@@ -44,7 +44,7 @@ def get_orch():
         raise HTTPException(status_code=503, detail="Model is loading, please retry in a moment")
     _loading = True
     try:
-        print("Loading mirnan V7...")
+        print("Loading mirnan V8...")
         t0 = time.time()
         data = mirnan_model.load_model()
         gen = Generator(
@@ -63,7 +63,7 @@ def get_orch():
 @app.on_event("startup")
 async def startup():
     global mirnan_orch
-    print("Loading mirnan V7 on startup (this takes ~3 minutes)...")
+    print("Loading mirnan V8 on startup (this takes ~3 minutes)...")
     get_orch()
 
 
@@ -325,4 +325,4 @@ async def root():
     index_path = os.path.join(ui_dir, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)
-    return {"message": "mirnan V7 API is running. UI not found."}
+    return {"message": "mirnan V8 API is running. UI not found."}
