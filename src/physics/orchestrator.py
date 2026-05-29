@@ -45,6 +45,9 @@ class PhysicsState:
         self.coherence = 0.0
         self.trajectory_milestone = ""
         self.interaction_trace_topics = 0
+        self.heterodyne_active = 0.0
+        self.oscillator_active = 0.0
+        self.gravity_vector = 0.0
 
     def to_dict(self):
         return {
@@ -74,6 +77,9 @@ class PhysicsState:
             'coherence': round(self.coherence, 4),
             'trajectory_milestone': self.trajectory_milestone,
             'interaction_trace_topics': self.interaction_trace_topics,
+            'heterodyne_active': round(self.heterodyne_active, 4),
+            'oscillator_active': round(self.oscillator_active, 4),
+            'gravity_vector': round(self.gravity_vector, 4),
         }
 
 
@@ -234,6 +240,10 @@ class PhysicsOrchestrator:
                 self.state.mass_std = float(np.std(masses))
 
         self.state.temperature = 1.0 / max(self.state.beta, 0.1)
+
+        self.state.heterodyne_active = float(gen.W.get('heterodyne', 0.0))
+        self.state.oscillator_active = float(gen.W.get('oscillator', 0.0))
+        self.state.gravity_vector = float(gen.W.get('gravity', 0.0))
         self._history.append({
             'prompt': prompt,
             'result': result,

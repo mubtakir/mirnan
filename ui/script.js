@@ -513,6 +513,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (report.mode) {
             addStat('fa-microchip', report.mode);
         }
+        if (report.heterodyne_active !== undefined && report.heterodyne_active > 0) {
+            addStat('fa-tower-broadcast', `HET=${report.heterodyne_active.toFixed(3)}`);
+        }
+        if (report.oscillator_active !== undefined && report.oscillator_active > 0) {
+            addStat('fa-wave-square', `OSC=${report.oscillator_active.toFixed(3)}`);
+        }
+        if (report.gravity_vector !== undefined && report.gravity_vector > 0) {
+            addStat('fa-arrows-down-to-line', `GV=${report.gravity_vector.toFixed(3)}`);
+        }
 
         msgDiv.insertAdjacentElement('afterend', reportDiv);
         chatContainer.scrollTop = chatContainer.scrollHeight;

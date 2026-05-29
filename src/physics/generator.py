@@ -25,6 +25,7 @@ import yaml
 from src.physics.word_physics import (
     compute_word_phase_vector,
     compute_extended_phase_vector,
+    compute_word_frequency,
     dress_extended_phase_vector,
     compute_word_mass,
     phase_similarity,
@@ -78,6 +79,8 @@ from src.physics.resonance_calibration import ResonanceCalibrator
 from src.physics.phase_evolution import PhaseEvolution
 from src.physics.trajectory_planner import TrajectoryPlanner
 from src.physics.coherence_feedback import CoherenceFeedback
+from src.physics.heterodyne_engine import HeterodyneEngine
+from src.physics.oscillator import OscillatorEngine
 from src.physics.hierarchical_memory import HierarchicalMemory
 from src.physics.intent_landscape import IntentLandscape
 from src.physics.multi_pass_generator import MultiPassGenerator
@@ -275,6 +278,11 @@ class Generator:
         self.interaction_trace = InteractionTrace(config=self.config)
         self.response_architect = ResponseArchitect(
             vocab=self.vocab, K_sem=self.K_sem, all_pv=self._all_pv, config=self.config)
+        self.heterodyne = HeterodyneEngine(
+            bandwidth=self.config.get('heterodyne', {}).get('bandwidth', 0.15),
+            context_window=self.config.get('heterodyne', {}).get('context_window', 8),
+        )
+        self.osc_engine = OscillatorEngine(coupling_K=self.K)
         self.W = self._init_weights()
 
     def _init_pv_matrix(self):
@@ -334,6 +342,8 @@ class Generator:
         raw_root_align = cfg_w.get('root_align', 0.80)
         raw_ram_plan = cfg_w.get('ram_plan', 1.00)
         raw_gravity = cfg_w.get('gravity', 1.50)
+        raw_heterodyne = cfg_w.get('heterodyne', 2.50)
+        raw_oscillator = cfg_w.get('oscillator', 1.50)
         raw_pragmatic = cfg_w.get('pragmatic', 1.50)
         raw_weight_resonance = cfg_w.get('weight_resonance', 1.20)
         raw_poetic = cfg_w.get('poetic', 3.50)
@@ -369,6 +379,7 @@ class Generator:
         raw_amfs = cfg_w.get('amfs', 1.50)
         raw_cascade = cfg_w.get('cascade', 1.50)
         raw_dialogue = cfg_w.get('dialogue', 3.00)
+        raw_category = cfg_w.get('category', 1.50)
         raw_contextual_spectra = cfg_w.get('contextual_spectra', 10.00)
         raw_trajectory = cfg_w.get('trajectory', 1.50)
         raw_hierarchical = cfg_w.get('hierarchical', 1.20)
@@ -380,7 +391,7 @@ class Generator:
                      raw_resonance, raw_symbolic, raw_morpho,
                      raw_morpho_trans, raw_sentence, raw_pos_alt, raw_irab,
                      raw_syntax_gate, raw_syntax_phase, raw_phil_semantic,
-                     raw_root_align, raw_ram_plan, raw_gravity, raw_pragmatic,
+                      raw_root_align, raw_ram_plan, raw_gravity, raw_heterodyne, raw_oscillator, raw_pragmatic,
                      raw_weight_resonance, raw_poetic, raw_rhyme,
                      raw_spectral, raw_thermo,
                      raw_dialogue_gravity, raw_dialogue_spectral,
@@ -393,8 +404,8 @@ class Generator:
                      raw_eng_morpho, raw_eng_morpho_trans, raw_eng_grammar,
                      raw_eng_agreement, raw_eng_stem_align,
                      raw_global_resonance, raw_phase_opposition,
-                     raw_syn, raw_sem, raw_conc, raw_causal, raw_resonant_chain,
-                     raw_dccf, raw_ppm, raw_amfs, raw_contextual_spectra,
+                      raw_syn, raw_sem, raw_conc, raw_causal, raw_resonant_chain,
+                      raw_dccf, raw_ppm, raw_amfs, raw_cascade, raw_dialogue, raw_category, raw_contextual_spectra,
                       raw_trajectory, raw_hierarchical, raw_intent_landscape, raw_trace, raw_relational,
                       raw_architect]
         pos_sum = sum(pos_terms)
@@ -418,6 +429,8 @@ class Generator:
             'root_align': raw_root_align * scale,
             'ram_plan': raw_ram_plan * scale,
             'gravity': raw_gravity * scale,
+            'heterodyne': raw_heterodyne * scale,
+            'oscillator': raw_oscillator * scale,
             'pragmatic': raw_pragmatic * scale,
             'weight_resonance': raw_weight_resonance * scale,
             'poetic': raw_poetic * scale,
@@ -453,6 +466,7 @@ class Generator:
             'amfs': raw_amfs * scale,
             'cascade': raw_cascade * scale,
             'dialogue': raw_dialogue * scale,
+            'category': raw_category * scale,
             'contextual_spectra': raw_contextual_spectra * scale,
             'trajectory': raw_trajectory * scale,
             'hierarchical': raw_hierarchical * scale,
@@ -545,15 +559,19 @@ class Generator:
             return 0.0
         n_words = len(context_words)
         c_masses = np.array([self._dyn_mass(c) for c in context_words])
-        seq_dists = np.arange(n_words, 0, -1, dtype=float)
-        c_pv_matrix = np.array([c[:self.old_semantic_dim] for c in context_pvs])
         w_pv_trunc = w_pv[:self.old_semantic_dim]
-        phase_aligns = np.array([phase_similarity(c, w_pv_trunc) for c in c_pv_matrix])
-        field_strength = (c_masses * phase_aligns) / (seq_dists ** 2)
+        phase_aligns = np.zeros(n_words)
+        grav_forces = np.zeros(n_words)
+        for i, c in enumerate(context_words):
+            c_pv = context_pvs[i][:self.old_semantic_dim]
+            phase_aligns[i] = phase_similarity(c_pv, w_pv_trunc)
+            vec_dist = np.linalg.norm(c_pv - w_pv_trunc) + 1e-10
+            grav_forces[i] = c_masses[i] / (vec_dist ** 2)
+        field_strength = grav_forces * phase_aligns
         total_field = np.sum(field_strength)
         return float(total_field) / max(float(n_words), 1.0)
 
-    def _score(self, word, used, all_pv, prompt_pv, gen_pos=0, total_pos=1, prev_word=None, context_ids=None, context_words=None, k_B_cur=None, beta_cur=None, S=None, _prev_freqs=None):
+    def _score(self, word, used, all_pv, prompt_pv, gen_pos=0, total_pos=1, prev_word=None, context_ids=None, context_words=None, k_B_cur=None, beta_cur=None, S=None, _prev_freqs=None, _osc_ctx=None):
         wid = self.vocab.word2id.get(word)
         if wid is None or word in used or len(word) < 2:
             return -np.inf
@@ -605,6 +623,8 @@ class Generator:
             sentence_score -= 1.0
         if gen_pos > total_pos - 3 and (word in _SENTENCE_STARTERS or word in _EN_SENTENCE_STARTERS):
             sentence_score -= 1.0
+        if gen_pos >= 5 and (word in _SENTENCE_ENDERS or word in _EN_SENTENCE_ENDERS):
+            sentence_score += 0.3  # مكافأة إنهاء الجمل بعد طول كافٍ
 
         pos_alt_score = 0.0
         if self.morpho and prev_word:
@@ -649,6 +669,38 @@ class Generator:
         gravity_score = 0.0
         if context_words:
             gravity_score = self._n_body_gravity(word, w_pv, context_words, all_pv)
+
+        heterodyne_score = 0.0
+        if context_ids and wid is not None and hasattr(self, 'heterodyne'):
+            heterodyne_score = self.heterodyne.compute_k_weighted_resonance(
+                wid, context_ids, self.K_sem, self.vocab, context_words)
+
+        osc_score = 0.0
+        if hasattr(self, 'osc_engine'):
+            try:
+                if _osc_ctx is not None and isinstance(_osc_ctx, np.ndarray) and _osc_ctx.shape == (PHASE_DIM,):
+                    w_phase = np.angle(np.fft.fft(w_pv[:PHASE_DIM])[:PHASE_DIM])
+                    w_phase = np.nan_to_num(w_phase, nan=0.0)
+                    osc_score = float(phase_similarity(_osc_ctx, w_phase))
+                elif context_words and len(context_words) >= 1:
+                    n_ctx = min(5, len(context_words))
+                    ctx_omega = np.array([compute_word_frequency(w) for w in context_words[-n_ctx:]])
+                    ctx_pv = np.array([self._get_pv_fast(w)[:PHASE_DIM] for w in context_words[-n_ctx:]])
+                    ctx_masses = np.array([self._dyn_mass(w) for w in context_words[-n_ctx:]])
+                    osc_phases = np.zeros((n_ctx, PHASE_DIM))
+                    for k in range(n_ctx):
+                        osc_phases[k] = np.angle(np.fft.fft(ctx_pv[k])[:PHASE_DIM])
+                    osc_phases = np.nan_to_num(osc_phases, nan=0.0)
+                    coupling = np.ones((n_ctx, n_ctx)) * 0.3
+                    evolved_phases, _ = self.osc_engine.simulate(
+                        ctx_omega, osc_phases, ctx_masses, ctx_pv,
+                        coupling, dt=0.01, steps=20, temperature=0.02)
+                    evolved_mean = np.mean(evolved_phases, axis=0)
+                    w_phase = np.angle(np.fft.fft(w_pv[:PHASE_DIM])[:PHASE_DIM])
+                    w_phase = np.nan_to_num(w_phase, nan=0.0)
+                    osc_score = float(phase_similarity(evolved_mean, w_phase))
+            except Exception:
+                osc_score = 0.0
 
         pragmatic_align = 0.0
         phase_opp_score = 0.0
@@ -699,6 +751,8 @@ class Generator:
             score += self.W.get('eng_stem_align', 0.0) * eng_stem_align_score
         score += self.W.get('ram_plan', 0.0) * ram_align_score
         score += self.W.get('gravity', 0.0) * gravity_score
+        score += self.W.get('heterodyne', 0.0) * heterodyne_score
+        score += self.W.get('oscillator', 0.0) * osc_score
         score += self.W.get('pragmatic', 0.0) * pragmatic_align
         score += self.W.get('causal', 0.0) * causal_score
         score += self.W.get('resonant_chain', 0.0) * resonant_chain_score
@@ -957,7 +1011,7 @@ class Generator:
         if context_words:
             from src.physics.semantic_categories import category_bonus
             category_score = category_bonus(word, context_words)
-        score += category_score  # مكافأة مباشرة (0.3 للكلمات المتوافقة)
+        score += self.W.get('category', 0.0) * category_score  # عبر نظام الأوزان
 
         # مسار الطور — توافق مع المعلم الحالي في مسار التوليد
         trajectory_score = 0.0
@@ -1019,6 +1073,8 @@ class Generator:
                 word_to_pv_fn=self._get_pv_fast,
             )
         score += self.W.get('cascade', 0.0) * cascade_score
+
+        score = float(np.clip(score, -5.0, 5.0))
 
         return score
 
@@ -1083,9 +1139,11 @@ class Generator:
             gate = 0.0
             w_pv = self._get_pv_fast(w)
             n_ctx = min(3, len(all_pv))
+            max_exp = 20.0  # سقف على exp لمنع الانفجار
             if n_ctx > 0:
                 for cpv in all_pv[-n_ctx:]:
-                    act = float(np.exp(beta * phase_similarity(cpv[:self.old_semantic_dim], w_pv[:self.old_semantic_dim])))
+                    sim = phase_similarity(cpv[:self.old_semantic_dim], w_pv[:self.old_semantic_dim])
+                    act = min(float(np.exp(beta * sim)), max_exp)
                     gate += k_val * act
             if self.ram.size > 0:
                 ram_ctx = self.ram.retrieve_context(w_pv, max_words=2)
@@ -1095,7 +1153,8 @@ class Generator:
                         if cid2 is not None and cid2 < self.K.shape[0] and wid < self.K.shape[1]:
                             k2 = max(float(self.K[cid2, wid]), 0.0)
                             cpv2 = self._get_pv_fast(cw)
-                            gate += 0.3 * k2 * float(np.exp(beta * phase_similarity(cpv2[:self.old_semantic_dim], w_pv[:self.old_semantic_dim])))
+                            sim2 = phase_similarity(cpv2[:self.old_semantic_dim], w_pv[:self.old_semantic_dim])
+                            gate += 0.3 * k2 * min(float(np.exp(beta * sim2)), max_exp)
             if is_particle(w) and len(context_ids) > 1:
                 gen_step = len(context_ids) - 1
                 penalty = max(0.01, 1.0 - gen_step * 0.25)
@@ -1121,12 +1180,33 @@ class Generator:
                     _prev_freqs.append(self.resonant_chain.pair_freq(ma, mb, pva, pvb))
             else:
                 _prev_freqs = None
+
+            # oscillator — يُحسب مرة واحدة للسياق بدل كل مرشح
+            osc_ctx = 0.0
+            if hasattr(self, 'osc_engine') and len(words) >= 1:
+                try:
+                    n_ctx = min(5, len(words))
+                    ctx_omega = np.array([compute_word_frequency(w) for w in words[-n_ctx:]])
+                    ctx_pv = np.array([self._get_pv_fast(w)[:PHASE_DIM] for w in words[-n_ctx:]])
+                    ctx_masses = np.array([self._dyn_mass(w) for w in words[-n_ctx:]])
+                    osc_phases = np.zeros((n_ctx, PHASE_DIM))
+                    for k in range(n_ctx):
+                        osc_phases[k] = np.angle(np.fft.fft(ctx_pv[k])[:PHASE_DIM])
+                    osc_phases = np.nan_to_num(osc_phases, nan=0.0)
+                    coupling = np.ones((n_ctx, n_ctx)) * 0.3
+                    evolved_phases, _ = self.osc_engine.simulate(
+                        ctx_omega, osc_phases, ctx_masses, ctx_pv,
+                        coupling, dt=0.01, steps=20, temperature=0.02)
+                    osc_ctx = np.mean(evolved_phases, axis=0)
+                except Exception:
+                    osc_ctx = 0.0
+
             candidates = self._resonance_candidates(context_ids, all_pv, used_set, beta_cur=beta_cur, prev_word=prev_word)
             if not candidates:
                 continue
             scored = [(self._score(w, used_set, all_pv, prompt_pv, len(words), len(words) + total,
                                    words[-1] if words else None, context_ids, words, k_B_cur, beta_cur, S,
-                                   _prev_freqs=_prev_freqs), w)
+                                   _prev_freqs=_prev_freqs, _osc_ctx=osc_ctx), w)
                       for w in candidates]
             scored.sort(key=lambda x: -x[0])
             for score, w in scored[:self.beam_width]:
@@ -1309,6 +1389,9 @@ class Generator:
                     if coh < 0.3:
                         beams[0].append(".")
                         break
+                    if coh < 0.5 and S_cur < self.entropy.S_crit * 0.8:
+                        beams[0].append(".")
+                        break
                 self.prompt_field.step()
             output = beams[0][len(prompt_tokens):]
             if output:
@@ -1388,7 +1471,7 @@ class Generator:
                 continue
             scored = [(self._score(w, used_set, all_pv, prompt_pv, len(words), len(words) + total,
                                    words[-1] if words else None, context_ids, words, k_B_cur, beta_cur, S,
-                                   _prev_freqs=_prev_freqs), w)
+                                   _prev_freqs=_prev_freqs, _osc_ctx=osc_ctx), w)
                       for w in candidates]
             scored.sort(key=lambda x: -x[0])
             for s, w in scored[:self.top_k]:

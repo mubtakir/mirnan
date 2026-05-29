@@ -98,6 +98,8 @@ scoring_weights:
   root_align: 0.80          # توافق الجذر
   ram_plan: 1.00            # ذاكرة الجذب
   gravity: 1.50             # الجاذبية الدلالية
+  heterodyne: 2.50          # التغاير الترددي (عزل رفقاء الكلمة سياقياً)
+  oscillator: 1.50          # مذبذبات كوراموتو
   pragmatic: 1.50           # البراغماتية
   weight_resonance: 1.20    # رنين الأوزان الصرفية
   poetic: 3.50              # الشعرية
@@ -133,6 +135,7 @@ scoring_weights:
   amfs: 1.50                # التحول التكيفي
   cascade: 1.50             # الهوي التراكمي
   dialogue: 3.00            # الحوار
+  category: 1.50            # التصنيف الدلالي
   contextual_spectra: 10.00 # الأطياف السياقية
   trajectory: 1.50           # مسار الطور (معالم التوليد)
   hierarchical: 1.20         # الذاكرة الهرمية
@@ -140,6 +143,11 @@ scoring_weights:
   trace: 0.50               # أثر التفاعل
   relational: 1.00           # K علاقية
   architect: 3.00             # بناء معماري للرد
+
+# ═══ محرك التغاير الترددي (Heterodyne) ═══
+heterodyne:
+  bandwidth: 0.15            # عرض نطاق التطابق الترددي
+  context_window: 8          # نافذة السياق للتحليل الترددي
 
 # ═══ التدريب — بناء مصفوفات K ═══
 training:

@@ -35,6 +35,13 @@ mirnan_orch = None
 _loading = False
 
 
+@app.on_event("startup")
+async def startup():
+    global mirnan_orch
+    print("Loading mirnan V7 on startup (this takes ~3 minutes)...")
+    get_orch()
+
+
 class ChatRequest(BaseModel):
     prompt: str
     mode: str = "auto"
