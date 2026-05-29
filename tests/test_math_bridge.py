@@ -6,6 +6,8 @@ class TestMathBridge:
         mb = MathBridge()
         assert mb.detect_mode("احسب ناتج 5 + 3") == 'math'
         assert mb.detect_mode("math problem") == 'math'
+        assert mb.detect_mode("3 + 1") == 'math'
+        assert mb.detect_mode("1+2") == 'math'
 
     def test_detect_code(self):
         mb = MathBridge()

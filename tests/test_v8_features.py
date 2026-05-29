@@ -129,3 +129,15 @@ class TestV8Features:
         p_res = gen._poetic_generate("السلام عليكم", max_words=2, meter='kamil')
         assert isinstance(p_res, str)
 
+    def test_math_evaluation_direct(self):
+        vocab, K, syntax = synchronize(["السلام عليكم"])
+        gen = Generator(vocab, K, syntax_field=syntax)
+        
+        # Test math direct evaluation via generate()
+        assert gen.generate("1 + 5") == "6"
+        assert gen.generate("3 + 1") == "4"
+        assert gen.generate("ما مجموع 1 + 5") == "6"
+        assert gen.generate("10 - 2") == "8"
+        assert gen.generate("3 * 4") == "12"
+        assert gen.generate("12 / 3") == "4"
+

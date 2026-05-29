@@ -1440,10 +1440,8 @@ class Generator:
 
     def _stepwise_generate(self, prompt, max_words=12):
         mode = self.math_bridge.detect_mode(prompt)
-        prompt_tokens = [self.vocab.id2word[self.vocab.get(w)] for w in prompt.split() if self.vocab.get(w) is not None]
-        if not prompt_tokens:
-            return ""
-        boost, _ = self.math_bridge.get_resonance_boost([prompt])
+        
+        # ═══ V8.5: حل العمليات الحسابية مباشرة حتى لو لم تكن الرموز الحسابية في المعجم ═══
         expr_match = re.search(r'[\+\-]?\d+(\.\d+)?(\s*[+\-*/]\s*\d+(\.\d+)?)+', prompt)
         if expr_match and mode == 'math':
             eval_result = self.math_bridge.evaluate_math(expr_match.group())
@@ -1452,6 +1450,12 @@ class Generator:
                 if val_str.endswith('.0'):
                     val_str = val_str[:-2]
                 return val_str
+                
+        prompt_tokens = [self.vocab.id2word[self.vocab.get(w)] for w in prompt.split() if self.vocab.get(w) is not None]
+        if not prompt_tokens:
+            return ""
+            
+        boost, _ = self.math_bridge.get_resonance_boost([prompt])
         result = self.generate(prompt, max_words=max_words, mode='quantum', skip_bridge=True)
         code_res = self.math_bridge.get_resonance_boost(result.split() if result else [])
         if mode == 'code' and code_res[0] < 0:

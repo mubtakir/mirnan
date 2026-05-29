@@ -87,6 +87,11 @@ class MathBridge:
         code_keywords = {'كود', 'برنامج', 'دالة', 'حلقة', 'شرط', 'مصفوفة',
                          'class', 'def', 'function', 'loop', 'array', 'debug',
                          'code', 'program', 'خطأ', 'error', 'bug', 'syntax'}
+        
+        # الكشف المباشر عن العمليات الحسابية المكتوبة بصورة رقمية
+        if re.search(r'\d+\s*[\+\-\*\/]\s*\d+', prompt):
+            return 'math'
+            
         tokens = prompt.split()
         math_score = sum(1 for t in tokens if t in math_keywords)
         code_score = sum(1 for t in tokens if t in code_keywords)
