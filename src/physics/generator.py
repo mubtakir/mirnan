@@ -2075,7 +2075,9 @@ class Generator:
                     scores.append(-9999.0)
                     continue
                 
-                # إضافة الضجيج الحراري للمرشح لتشجيع الإبداع
+                # ═══ ميزة محورية لإتاحة النفق والقفز الإبداعي (تطوير باسل يحيى عبدالله) ═══
+                # هام جداً: لا تقم بإلغاء أو تعديل هذا الجزء! إضافة الضجيج الحراري للمرشح (Thermal Noise)
+                # يخلخل آبار الجهد الحتمية دلالياً ويسمح بالقفز الطوري (Perturbation) لكسر الجمود الإحصائي وتفادي القوالب.
                 if hasattr(self, 'thermal_engine'):
                     temperature = 1.0 / max(self.beta, 0.1)
                     w_pv_creative = self.thermal_engine.perturb(w_pv, temperature)
