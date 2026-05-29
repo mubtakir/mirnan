@@ -111,3 +111,21 @@ class TestV8Features:
         # Test hierarchical modulation helper
         h_mod = gen._hierarchical_modulation(w_pv)
         assert 0.0 <= h_mod <= 1.0
+
+    def test_string_to_token_list_conversion(self):
+        vocab, K, syntax = synchronize(["السلام عليكم ورحمة الله وبركاته"])
+        gen = Generator(vocab, K, syntax_field=syntax)
+        
+        # Test passing string directly to generator methods instead of list of tokens
+        q_res = gen._quantum_generate("السلام عليكم", max_words=2)
+        assert isinstance(q_res, str)
+        
+        m_res = gen._multiverse_generate("السلام عليكم", max_words=2)
+        assert isinstance(m_res, str)
+        
+        w_res = gen._wave_generate("السلام عليكم", max_words=2)
+        assert isinstance(w_res, str)
+        
+        p_res = gen._poetic_generate("السلام عليكم", max_words=2, meter='kamil')
+        assert isinstance(p_res, str)
+

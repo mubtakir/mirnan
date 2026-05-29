@@ -1742,6 +1742,8 @@ class Generator:
         return ' '.join(output) if output else None
 
     def _quantum_generate(self, prompt_tokens, max_words=12):
+        if isinstance(prompt_tokens, str):
+            prompt_tokens = [w for w in prompt_tokens.split() if w]
         collapsed_words = prompt_tokens[:]
         prompt_pv = [self._get_pv_fast(w) for w in prompt_tokens]
         superposition = [(0.0, [], set(prompt_tokens))]
@@ -1793,6 +1795,8 @@ class Generator:
 
     def _wave_generate(self, prompt_tokens, max_words=12):
         """توليد عبر الشبكة التوليدية الفيزيائية — بحث مسار طيفي."""
+        if isinstance(prompt_tokens, str):
+            prompt_tokens = [w for w in prompt_tokens.split() if w]
         if not hasattr(self, 'pgn') or not hasattr(self, 'spectral_coupling'):
             return self._quantum_generate(prompt_tokens, max_words)
         if not prompt_tokens:
@@ -1807,6 +1811,8 @@ class Generator:
         return ' '.join(output)
 
     def _multiverse_generate(self, prompt_tokens, max_words=12):
+        if isinstance(prompt_tokens, str):
+            prompt_tokens = [w for w in prompt_tokens.split() if w]
         prompt_pv = [self._get_pv_fast(w) for w in prompt_tokens]
         superposition = [(0.0, [], set(prompt_tokens))]
         quantum_capacity = 15
@@ -1992,6 +1998,8 @@ class Generator:
         return result
 
     def _poetic_generate(self, prompt_tokens, max_words=12, meter='kamil', rhyme=None):
+        if isinstance(prompt_tokens, str):
+            prompt_tokens = [w for w in prompt_tokens.split() if w]
         collapsed_words = prompt_tokens[:]
         prompt_pv = [self._get_pv_fast(w) for w in prompt_tokens]
         superposition = [(0.0, [], set(prompt_tokens), 0)]
