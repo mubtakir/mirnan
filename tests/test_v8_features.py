@@ -141,3 +141,16 @@ class TestV8Features:
         assert gen.generate("3 * 4") == "12"
         assert gen.generate("12 / 3") == "4"
 
+    def test_orchestrator_math_evaluation(self):
+        from src.physics.orchestrator import PhysicsOrchestrator
+        vocab, K, syntax = synchronize(["السلام عليكم"])
+        gen = Generator(vocab, K, syntax_field=syntax)
+        orch = PhysicsOrchestrator(gen)
+        
+        # Test PhysicsOrchestrator routes and evaluates math
+        assert orch.generate("1 + 5") == "6"
+        assert orch.generate("3 + 1") == "4"
+        assert orch.generate("ما مجموع 1 + 5") == "6"
+        assert orch.generate("10 - 2") == "8"
+
+

@@ -182,7 +182,7 @@ class PhysicsOrchestrator:
             self.state.mode = 'creative'
             self.state.is_creative = True
         elif words & math_keywords or any(c in prompt for c in '+-*/='):
-            self.state.mode = 'quantum'
+            self.state.mode = 'math'
             self.state.is_math = True
         elif words & code_keywords or 'def ' in prompt or 'class ' in prompt:
             self.state.mode = 'code'
