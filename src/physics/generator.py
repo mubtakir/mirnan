@@ -2053,7 +2053,7 @@ class Generator:
         if vocab_type == "benchmark":
             benchmark_words = self.load_benchmark_vocab()
             for w in benchmark_words:
-                if w == target_word or len(w) < 2 or w in target_word or target_word in w:
+                if w == target_word or len(w) < 2 or (len(target_word) > 1 and (w in target_word or target_word in w)):
                     continue
                 wid = self.vocab.word2id.get(w)
                 if wid is not None and wid < len(self._all_pv):
@@ -2063,7 +2063,7 @@ class Generator:
                 words_to_score.append((w, v))
         else:
             for wid, w in self.vocab.id2word.items():
-                if w == target_word or len(w) < 2 or w in target_word or target_word in w:
+                if w == target_word or len(w) < 2 or (len(target_word) > 1 and (w in target_word or target_word in w)):
                     continue
                 if wid < len(self._all_pv):
                     v = self._all_pv[wid, :22]
