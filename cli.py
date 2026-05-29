@@ -149,7 +149,7 @@ def main():
     parser = argparse.ArgumentParser(description="مرنان — مولد نصوص فيزيائي")
     parser.add_argument('prompt', nargs='*', help="النص المدخل")
     parser.add_argument('--mode', default='auto',
-                        choices=['auto', 'standard', 'quantum', 'multiverse', 'wave', 'poetic', 'dialogue', 'attract', 'field'])
+                        choices=['auto', 'standard', 'quantum', 'multiverse', 'wave', 'poetic', 'creative', 'dialogue', 'attract', 'field'])
     parser.add_argument('--beta', type=float, default=None)
     parser.add_argument('--k_B', type=float, default=None)
     parser.add_argument('--meter', default=None, help="البحر الشعري")

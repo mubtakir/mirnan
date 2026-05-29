@@ -1136,3 +1136,266 @@ body {
     white-space: nowrap;
     cursor: default;
 }
+
+/* ==========================================================================
+   SIO (Synthetic Intelligence Orchestrator) Panel
+   ========================================================================== */
+
+.sio-results-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 24px;
+    height: 100%;
+    overflow-y: auto;
+    gap: 16px;
+}
+
+.sio-results-container::-webkit-scrollbar {
+    width: 6px;
+}
+.sio-results-container::-webkit-scrollbar-thumb {
+    background: var(--border-glass);
+    border-radius: 3px;
+}
+
+.sio-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-glass);
+}
+
+.sio-header h2 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--secondary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.sio-status {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.1);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-weight: 600;
+}
+
+.sio-plan {
+    background: rgba(30, 41, 59, 0.4);
+    border: 1px solid var(--border-glass);
+    border-radius: 14px;
+    padding: 14px 18px;
+    font-size: 0.9rem;
+}
+
+.sio-plan strong {
+    color: var(--secondary);
+}
+
+.sio-progress {
+    height: 6px;
+    background: rgba(15, 23, 42, 0.6);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.sio-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary), var(--secondary), #10b981);
+    border-radius: 3px;
+    transition: width 0.5s ease;
+    width: 0%;
+}
+
+.sio-phases {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.sio-phases h3 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-light);
+    margin-bottom: 4px;
+}
+
+.sio-phase-card {
+    background: rgba(30, 41, 59, 0.4);
+    border: 1px solid var(--border-glass);
+    border-radius: 12px;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.85rem;
+    transition: all 0.2s ease;
+}
+
+.sio-phase-card:hover {
+    background: rgba(30, 41, 59, 0.6);
+}
+
+.sio-phase-card.failed {
+    border-color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+}
+
+.sio-phase-card .phase-name {
+    font-weight: 700;
+    min-width: 60px;
+}
+
+.sio-phase-card .phase-info {
+    color: var(--text-muted);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.78rem;
+}
+
+.sio-phase-card .phase-diag {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    margin-right: auto;
+}
+
+.sio-deliverable {
+    flex: 1;
+    background: rgba(15, 23, 42, 0.5);
+    border: 1px solid var(--border-glass);
+    border-radius: 16px;
+    padding: 20px;
+    overflow-y: auto;
+    font-size: 0.9rem;
+    line-height: 1.7;
+}
+
+.sio-deliverable h3 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--primary);
+    margin-bottom: 14px;
+    border-bottom: 1px solid var(--border-glass);
+    padding-bottom: 8px;
+}
+
+.sio-deliverable h2 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--secondary);
+    margin-top: 16px;
+    margin-bottom: 10px;
+}
+
+.sio-deliverable code {
+    background: rgba(15, 23, 42, 0.6);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Consolas', monospace;
+    font-size: 0.85rem;
+    color: var(--accent);
+}
+
+.sio-deliverable pre {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid var(--border-glass);
+    border-radius: 12px;
+    padding: 16px;
+    overflow-x: auto;
+    margin: 12px 0;
+}
+
+.sio-error {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid #ef4444;
+    border-radius: 12px;
+    padding: 16px;
+    color: #ef4444;
+}
+
+/* ==========================================================================
+   Phased-Array Radar Visualization (ResonantBeamformer)
+   ========================================================================== */
+
+.radar-container {
+    width: 100%;
+    background: rgba(15, 23, 42, 0.4);
+    border: 1px solid var(--border-glass);
+    border-radius: 12px;
+    padding: 14px;
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.radar-title {
+    font-size: 0.95rem;
+    color: var(--secondary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+}
+
+.radar-bars {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    min-height: 80px;
+}
+
+.radar-bars::-webkit-scrollbar {
+    height: 4px;
+}
+.radar-bars::-webkit-scrollbar-thumb {
+    background: var(--border-glass);
+    border-radius: 4px;
+}
+
+.radar-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    min-width: 50px;
+}
+
+.radar-bar-wrapper {
+    height: 60px;
+    width: 8px;
+    background: rgba(30, 41, 59, 0.6);
+    border-radius: 4px;
+    display: flex;
+    align-items: flex-end;
+    overflow: hidden;
+}
+
+.radar-bar {
+    width: 100%;
+    background: linear-gradient(0deg, #0ea5e9, #10b981);
+    border-radius: 4px;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.6);
+    transition: height 0.5s ease-out;
+}
+
+.radar-word {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-light);
+    white-space: nowrap;
+}
+
+.radar-val {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-family: 'Inter', sans-serif;
+}

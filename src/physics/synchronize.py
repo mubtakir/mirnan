@@ -11,6 +11,7 @@ from scipy import sparse
 from src.physics.particles import is_particle
 from src.physics.word_physics import compute_word_phase_vector, _normalize_letters, phase_similarity
 from src.physics.grammar_field import SyntaxField
+from src.physics.carrier_engine import CarrierWaveEngine
 
 
 def _tokenize(text):
@@ -152,6 +153,14 @@ def synchronize(corpus_texts, window=5, alpha=0.25, mode='sem', vocab=None, doma
     syntax.finalize(vocab)
 
     return vocab, K, syntax
+
+
+def synchronize_with_carrier(corpus_texts, window=5, alpha=0.25, mode='sem', vocab=None):
+    """تدريب المزامنة + بناء أطياف الموجة الحاملة."""
+    vocab, K, syntax = synchronize(corpus_texts, window=window, alpha=alpha, mode=mode, vocab=vocab)
+    carrier = CarrierWaveEngine()
+    carrier.build_from_corpus(corpus_texts, vocab)
+    return vocab, K, syntax, carrier
 
 
 def assimilate_text(corpus_texts, vocab, K_old, window=5, alpha_blend=0.1):

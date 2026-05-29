@@ -1,18 +1,12 @@
-import sys, io, time
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-from src.physics.synchronize import synchronize
-from src.physics.generator import Generator
+from src.api.main import get_orch
+import json
 
-with open('data/corpus.txt', encoding='utf-8') as f:
-    c1 = f.read()
-with open('data/dialogue_corpus.txt', encoding='utf-8') as f:
-    c2 = f.read()
-corpus_list = [c1, c2]
+orch = get_orch()
+orch.set_cascade(True, 3.0)
+orch.set_dialogue(True)
 
-vocab, K, syntax = synchronize(corpus_list, window=5)
-gen = Generator(vocab, K, beam_width=3, top_k=250, syntax_field=syntax, beta=2.0)
+result = orch.generate("تخيل مدينة", max_words=10, mode='creative')
+print("RESULT:", result)
 
-prompt = "ما مجموع 1 + 2"
-print("Tokens:", [vocab.id2word.get(vocab.get(w)) for w in prompt.split() if vocab.get(w) is not None])
-print("Standard:", gen.generate(prompt, max_words=10, mode='standard'))
-print("Quantum:", gen.generate(prompt, max_words=10, mode='quantum'))
+report = orch.get_report()
+print("REPORT:", json.dumps(report, ensure_ascii=False))

@@ -16,9 +16,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const cascadeStrengthSlider = document.getElementById('cascade-strength-slider');
     const cascadeStrengthValue = document.getElementById('cascade-strength-value');
     const dialogueToggle = document.getElementById('dialogue-toggle');
+    const weightedToggle = document.getElementById('weighted-toggle');
 
     // New split workspace element handles
     const fieldResultsContainer = document.getElementById('field-results-container');
+    const sioResultsContainer = document.getElementById('sio-results-container');
     const calibrationSidebar = document.getElementById('calibration-sidebar');
     const letterGrid = document.getElementById('letter-grid');
     const selectedLetterHeader = document.getElementById('selected-letter-header');
@@ -86,11 +88,19 @@ document.addEventListener('DOMContentLoaded', () => {
             promptInput.placeholder = "أدخل كلمة أو حرفاً لفحص حقل الجذب والتنافر الفيزيائي...";
             chatContainer.style.display = 'none';
             fieldResultsContainer.style.display = 'flex';
+            sioResultsContainer.style.display = 'none';
             calibrationSidebar.style.display = 'flex';
             
             // Load initialization data
             loadLetters();
             loadBenchmarkVocab();
+        } else if (modeSelect.value === 'synthesize') {
+            promptInput.placeholder = "اكتب هدف المشروع... مثال: ابنِ لي API لإدارة المهام مع واجهة ويب";
+            chatContainer.style.display = 'none';
+            fieldResultsContainer.style.display = 'none';
+            sioResultsContainer.style.display = 'flex';
+            calibrationSidebar.style.display = 'none';
+            document.getElementById('sio-status').textContent = 'جاهز';
         } else {
             promptInput.placeholder = "اكتب رسالتك هنا...";
             chatContainer.style.display = 'flex';
@@ -517,14 +527,94 @@ document.addEventListener('DOMContentLoaded', () => {
             addStat('fa-tower-broadcast', `HET=${report.heterodyne_active.toFixed(3)}`);
         }
         if (report.oscillator_active !== undefined && report.oscillator_active > 0) {
-            addStat('fa-wave-square', `OSC=${report.oscillator_active.toFixed(3)}`);
+            addStat('fa-arrows-spin', `OSC=${report.oscillator_active.toFixed(3)}`);
         }
         if (report.gravity_vector !== undefined && report.gravity_vector > 0) {
             addStat('fa-arrows-down-to-line', `GV=${report.gravity_vector.toFixed(3)}`);
         }
+        if (report.carrier_active !== undefined && report.carrier_active > 0) {
+            addStat('fa-broadcast-tower', `CR=${report.carrier_active.toFixed(3)}`);
+        }
+        if (report.beamform_active !== undefined && report.beamform_active > 0) {
+            addStat('fa-crosshairs', `BF=${report.beamform_active.toFixed(3)}`);
+        }
+        if (report.refractory_active !== undefined && report.refractory_active > 0) {
+            addStat('fa-ban', `RF=${report.refractory_active.toFixed(3)}`);
+        }
+        if (report.macro_wave_active !== undefined && report.macro_wave_active > 0) {
+            addStat('fa-cubes', `MW=${report.macro_wave_active.toFixed(3)}`);
+        }
+
+        if (report.beamformer && report.beamformer.weights) {
+            const radarDiv = document.createElement('div');
+            radarDiv.className = 'radar-container';
+            radarDiv.innerHTML = `<div class="radar-title"><i class="fa-solid fa-crosshairs"></i> الرادار الطوري (الهدف: <strong>${report.beamformer.candidate}</strong>)</div>`;
+            
+            const barsContainer = document.createElement('div');
+            barsContainer.className = 'radar-bars';
+            
+            const ctxWords = report.beamformer.context;
+            const weights = report.beamformer.weights;
+            
+            for (let i = 0; i < ctxWords.length; i++) {
+                const w = ctxWords[i];
+                const weight = weights[i];
+                const heightPercent = Math.min(100, Math.max(5, weight * 100 * 2.0)); 
+                
+                const barItem = document.createElement('div');
+                barItem.className = 'radar-item';
+                barItem.innerHTML = `
+                    <div class="radar-bar-wrapper">
+                        <div class="radar-bar" style="height: ${heightPercent}%"></div>
+                    </div>
+                    <div class="radar-word">${w}</div>
+                    <div class="radar-val">${(weight).toFixed(2)}</div>
+                `;
+                barsContainer.appendChild(barItem);
+            }
+            radarDiv.appendChild(barsContainer);
+            reportDiv.appendChild(radarDiv);
+        }
 
         msgDiv.insertAdjacentElement('afterend', reportDiv);
         chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    // SIO Results Renderer
+    function renderSioResults(data) {
+        document.getElementById('sio-status').textContent = 
+            `اكتمل في ${data.time_elapsed}s | ${data.phases_completed.length}/${data.total_phases} مراحل`;
+        
+        const planDiv = document.getElementById('sio-plan');
+        planDiv.innerHTML = `<strong>الهدف:</strong> ${data.goal}<br><small>${data.summary}</small>`;
+        
+        const phasesDiv = document.getElementById('sio-phases');
+        phasesDiv.innerHTML = '<h3>المراحل</h3>';
+        data.phase_details.forEach(p => {
+            const icon = p.coherence > 0.5 ? 'fa-circle-check' : 'fa-circle-exclamation';
+            const color = p.coherence > 0.5 ? '#10b981' : '#f59e0b';
+            phasesDiv.innerHTML += `
+                <div class="sio-phase-card">
+                    <i class="fa-solid ${icon}" style="color:${color}"></i>
+                    <span class="phase-name">${p.name}</span>
+                    <span class="phase-info">${p.iterations} محاولات | تماسك: ${(p.coherence*100).toFixed(0)}%</span>
+                    <span class="phase-diag">${p.diagnosis}</span>
+                </div>`;
+        });
+        
+        if (data.phases_failed && data.phases_failed.length > 0) {
+            phasesDiv.innerHTML += `<div class="sio-phase-card failed">فشلت: ${data.phases_failed.join(', ')}</div>`;
+        }
+        
+        const delivDiv = document.getElementById('sio-deliverable');
+        delivDiv.innerHTML = '<h3>المنتج النهائي</h3>';
+        delivDiv.innerHTML += parseMarkdown(data.deliverable);
+        
+        const progress = data.phases_completed.length / Math.max(data.total_phases, 1) * 100;
+        document.getElementById('sio-progress-bar').style.width = progress + '%';
+        
+        document.getElementById('sio-status').textContent += 
+            ` | مراقب: ${data.monitor.corrections_applied} تصحيحات`;
     }
 
     // Chat submit handler
@@ -543,6 +633,42 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (prompt.length === 1 && letterVectors[prompt]) {
                 selectLetter(prompt);
+            }
+            return;
+        }
+
+        // Custom handling for SIO synthesis mode
+        if (modeSelect.value === 'synthesize') {
+            promptInput.disabled = true;
+            sendBtn.disabled = true;
+            
+            document.getElementById('sio-status').textContent = 'يحلل الهدف...';
+            document.getElementById('sio-plan').innerHTML = '';
+            document.getElementById('sio-phases').innerHTML = '';
+            document.getElementById('sio-deliverable').innerHTML = '';
+            
+            try {
+                const response = await fetch('/api/synthesize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ goal: prompt, max_phase_retries: 5 }),
+                });
+                
+                if (!response.ok) {
+                    throw new Error('SIO synthesis failed');
+                }
+                
+                const data = await response.json();
+                renderSioResults(data);
+                
+            } catch (error) {
+                document.getElementById('sio-status').textContent = 'فشل';
+                document.getElementById('sio-deliverable').innerHTML = `<div class="sio-error">خطأ: ${error.message}</div>`;
+            } finally {
+                promptInput.value = '';
+                promptInput.disabled = false;
+                sendBtn.disabled = false;
+                promptInput.focus();
             }
             return;
         }
@@ -568,6 +694,7 @@ document.addEventListener('DOMContentLoaded', () => {
             cascade: cascadeToggle.checked,
             cascade_strength: cascadeToggle.checked ? parseFloat(cascadeStrengthSlider.value) : null,
             dialogue: dialogueToggle.checked,
+            weighted: weightedToggle.checked,
         };
 
         if (mode === 'poetic') {

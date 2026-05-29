@@ -21,7 +21,7 @@
                 <i class="fa-solid fa-atom quantum-icon"></i>
                 <div class="logo-text">
                     <h1>مرنان <span>V7</span></h1>
-                    <p>Physics Orchestrator — DCCF · PPM · AMFS</p>
+                    <p>Physics Orchestrator — BF · CR · RF · MW</p>
                 </div>
             </div>
             <div class="controls">
@@ -29,6 +29,7 @@
                     <select id="mode-select" aria-label="Generation Mode">
                         <option value="auto" selected>Auto (ذكي)</option>
                         <option value="dialogue">Dialogue (حوار)</option>
+                        <option value="creative">Creative (إبداعي)</option>
                         <option value="wave">Wave (أسرع)</option>
                         <option value="standard">Standard</option>
                         <option value="quantum">Quantum Superposition</option>
@@ -36,6 +37,7 @@
                         <option value="poetic">Poetic (شعر)</option>
                         <option value="code">Code (Python)</option>
                         <option value="attract">Field (حقل الجذب والتنافر)</option>
+                        <option value="synthesize">SIO (ذكاء توليفي)</option>
                     </select>
                 </div>
                 <div class="physics-knobs">
@@ -65,6 +67,13 @@
                             <span class="slider round"></span>
                         </label>
                     </div>
+                    <div class="knob toggle-knob">
+                        <label for="weighted-toggle">POS-W</label>
+                        <label class="switch">
+                            <input type="checkbox" id="weighted-toggle" checked>
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
                 </div>
             </div>
         </header>
@@ -73,10 +82,25 @@
             <main class="chat-container" id="chat-container">
                 <div class="message system-message">
                     <div class="message-content">
-                        <p>مرحباً بك في <strong>مرنان V7</strong>. النظام يعتمد على الفيزياء الطورية — DCCF، PPM، AMFS، 16 بحراً عربياً، وتعزيز طوري ذاتي. جرّب تفعيل <strong>CASCADE</strong> للهوي الحتمي بدون softmax. أدخل نصاً للبدء.</p>
+                        <p>مرحباً بك في <strong>مرنان V7</strong>. يعتمد على فيزياء الطور — تغاير ترددي (HET)، مذبذبات كوراموتو (OSC)، جاذبية إقليدية (GV)، دائرة رنين LC، و 16 بحراً عربياً. اختر <strong>SIO</strong> للذكاء التوليفي الذي يحول فكرة كاملة إلى منتج. أدخل نصاً للبدء.</p>
                     </div>
                 </div>
             </main>
+
+            <div class="field-results-container" id="field-results-container" style="display: none;">
+
+            <div class="sio-results-container" id="sio-results-container" style="display: none;">
+                <div class="sio-header">
+                    <h2><i class="fa-solid fa-microchip"></i> الذكاء التوليفي</h2>
+                    <div class="sio-status" id="sio-status">جاهز</div>
+                </div>
+                <div class="sio-plan" id="sio-plan"></div>
+                <div class="sio-progress">
+                    <div class="sio-progress-bar" id="sio-progress-bar"></div>
+                </div>
+                <div class="sio-phases" id="sio-phases"></div>
+                <div class="sio-deliverable" id="sio-deliverable"></div>
+            </div>
 
             <div class="field-results-container" id="field-results-container" style="display: none;">
                 <div class="field-controls">

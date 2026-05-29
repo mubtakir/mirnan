@@ -88,6 +88,13 @@ from src.physics.interaction_trace import InteractionTrace
 from src.physics.relational_k import RelationalK
 from src.physics.response_architect import ResponseArchitect
 
+from src.physics.advanced_engines import (
+    ResonantBeamformer, PhaseAccumulator, RefractoryGate, MacroWaveEngine
+)
+from src.physics.chaos_and_entanglement import (
+    ThermalChaosEngine, QuantumEntanglementEngine, MolecularBinder
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -251,6 +258,11 @@ class Generator:
         except Exception as e:
             logger.warning(f"SpectralCouplingMatrix init: {e}")
         self.pgn = PhysicsGenerativeNetwork(self.spectral_coupling)
+
+        # ═══ المحركات الحديثة للإبداع والتشابك ═══
+        self.thermal_engine = ThermalChaosEngine(base_noise=0.02)
+        self.entanglement = QuantumEntanglementEngine(entanglement_threshold=0.85, super_gravity_multiplier=3.0)
+        self.molecular_binder = MolecularBinder(binding_threshold=0.90)
         self.phase_dim = PHASE_DIM
         self.old_semantic_dim = PHASE_DIM + ROOT_DIMS + EXTRA_DIMS
         self.syn_start = self.old_semantic_dim
@@ -283,7 +295,19 @@ class Generator:
             context_window=self.config.get('heterodyne', {}).get('context_window', 8),
         )
         self.osc_engine = OscillatorEngine(coupling_K=self.K)
+        
+        # Advanced Engines
+        self.beamformer = ResonantBeamformer()
+        self.phase_acc = PhaseAccumulator()
+        self.refractory = RefractoryGate()
+        self.macro_engine = MacroWaveEngine()
+        
         self.W = self._init_weights()
+
+    def set_cascade(self, enabled, lambda_cascade=1.8):
+        self.cascade_enabled = enabled
+        if hasattr(self, 'cascade_layer'):
+            self.cascade_layer.lambda_cascade = lambda_cascade
 
     def _init_pv_matrix(self):
         pv = np.zeros((self.V, TOTAL_DIM))
@@ -1826,42 +1850,143 @@ class Generator:
         output = collapsed_words[len(prompt_tokens):]
         return ' '.join(output)
 
+    def _creative_generate(self, prompt, max_words=12):
+        """التوليد الإبداعي — باستخدام المحركات المتقدمة لكسر حلقة الرنين"""
+        prompt_tokens = prompt.split() if isinstance(prompt, str) else prompt
+
+        _creative_cfg = self.config.get('creative', {})
+        tau = _creative_cfg.get('tau', 1.2)
+        creative_beam = _creative_cfg.get('beam_width', 8)
+        
+        if hasattr(self, 'refractory'):
+            self.refractory.reset()
+            self.macro_engine.reset()
+
+        collapsed_words = prompt_tokens[:]
+        
+        if hasattr(self, 'refractory'):
+            for w in collapsed_words:
+                self.refractory.deplete(self._get_pv_fast(w))
+
+        for step in range(max_words):
+            all_pv = [self._get_pv_fast(w) for w in collapsed_words]
+            ctx_masses = [self._dyn_mass(w) for w in collapsed_words]
+            context_ids = [self.vocab.word2id[w] for w in collapsed_words if w in self.vocab.word2id]
+            prev_word = collapsed_words[-1] if collapsed_words else None
+            
+            # Application of molecular binder
+            if hasattr(self, 'molecular_binder'):
+                bound_words, bound_pvs, bound_masses = self.molecular_binder.bind(collapsed_words, all_pv, ctx_masses)
+            else:
+                bound_words, bound_pvs, bound_masses = collapsed_words, all_pv, ctx_masses
+            
+            candidates = self._resonance_candidates(context_ids, all_pv, set(), prev_word=prev_word)
+            if not candidates: break
+                
+            scores = []
+            for w in candidates:
+                w_pv = self._get_pv_fast(w)
+                if w_pv is None:
+                    scores.append(-9999.0)
+                    continue
+                
+                # إضافة الضجيج الحراري للمرشح لتشجيع الإبداع
+                if hasattr(self, 'thermal_engine'):
+                    temperature = 1.0 / max(self.beta, 0.1)
+                    w_pv_creative = self.thermal_engine.perturb(w_pv, temperature)
+                else:
+                    w_pv_creative = w_pv
+                
+                base_score = self._score(w, set(), all_pv, None, len(collapsed_words), max_words, prev_word, context_ids, collapsed_words, self.entropy.k_B, self.beta, None)
+                
+                # إضافة جاذبية التشابك الكمي
+                entanglement_score = 0.0
+                if hasattr(self, 'entanglement'):
+                    entanglement_score = self.entanglement.compute_entanglement_bonus(w_pv_creative, bound_pvs, bound_masses)
+                
+                beam_focus = 0.0
+                repulsion = 0.0
+                macro_score = 0.0
+                
+                if hasattr(self, 'beamformer') and len(all_pv) > 1:
+                    ctx_pvs = all_pv[-10:]
+                    _, _, beam_focus = self.beamformer.beamform(w_pv_creative[:22], ctx_pvs, collapsed_words[-10:])
+                    repulsion = self.refractory.get_repulsion_field(w_pv_creative)
+                    macro_score = self.macro_engine.score_candidate_via_concepts(w_pv_creative, collapsed_words)
+                
+                total_score = base_score + (beam_focus * 3.0) + (repulsion * 2.5) + (macro_score * 2.0) + entanglement_score
+                scores.append(total_score)
+            
+            scores = np.array(scores)
+            max_score = np.max(scores)
+            exp_scores = np.exp((scores - max_score) / tau)
+            sum_exp = np.sum(exp_scores)
+            
+            if sum_exp > 0:
+                probs = exp_scores / sum_exp
+                chosen_idx = np.random.choice(len(candidates), p=probs)
+                chosen_word = candidates[chosen_idx]
+            else:
+                chosen_word = candidates[np.argmax(scores)]
+                
+            collapsed_words.append(chosen_word)
+            chosen_pv = self._get_pv_fast(chosen_word)
+            
+            if hasattr(self, 'refractory'):
+                self.refractory.deplete(chosen_pv)
+                self.refractory.step()
+                from src.physics.word_physics import compute_word_mass
+                self.macro_engine.entangle(collapsed_words, self._get_pv_fast, compute_word_mass)
+            
+        return ' '.join(collapsed_words[len(prompt_tokens):])
+
     def get_physics_report(self, prompt, result):
-        if not result:
-            return {}
+        if not result: return {}
         all_words = prompt.split() + result.split()
-        pvs = []
-        masses = []
-        weight_labels = []
+        pvs = []; masses = []; weight_labels = []
         for w in all_words:
             pv = self._get_pv_fast(w)
             pvs.append(pv)
-            masses.append(compute_word_mass(w))
+            from src.physics.word_physics import compute_word_mass
+            masses.append(float(compute_word_mass(w)))
             wgt = self.weight_resonance.get_weight(w)
-            weight_labels.append(wgt or "—")
+            weight_labels.append(str(wgt) if wgt else "—")
         phase_angles = []
+        import numpy as np
         for i, w in enumerate(all_words):
             pv = pvs[i]
             angle = float(np.arctan2(pv[1], pv[0])) if abs(pv[0]) > 1e-10 else 0.0
-            phase_angles.append(round(angle / (2 * np.pi) % 1.0, 4))
+            phase_angles.append(float(round(angle / (2 * np.pi) % 1.0, 4)))
         target = self._target_phase(pvs)
         alignments = []
+        from src.physics.word_physics import phase_similarity
         for pv in pvs:
-            align = phase_similarity(pv[:self.old_semantic_dim], target[:self.old_semantic_dim])
+            align = float(phase_similarity(pv[:self.old_semantic_dim], target[:self.old_semantic_dim]))
             tag = "متوافق" if align > 0.3 else ("منحرف" if align > 0.0 else "متضاد")
             alignments.append(f"{tag}_{align:.2f}")
         morph_agg = {}
         for lbl in weight_labels:
-            if lbl != "—":
-                morph_agg[lbl] = morph_agg.get(lbl, 0) + 1
+            if lbl != "—": morph_agg[lbl] = int(morph_agg.get(lbl, 0) + 1)
+        beamformer_data = None
+        if hasattr(self, 'beamformer') and len(all_words) > 1:
+            try:
+                candidate = str(all_words[-1])
+                candidate_pv = pvs[-1]
+                context_words = [str(w) for w in all_words[-11:-1]]
+                ctx_pvs = pvs[-11:-1]
+                _, weights, focus_score = self.beamformer.beamform(candidate_pv[:22], ctx_pvs, context_words)
+                beamformer_data = {"candidate": candidate, "context": context_words, "weights": [float(w) for w in weights], "focus_score": float(focus_score)}
+            except Exception as e:
+                pass
         return {
-            "word_masses": {w: round(m, 4) for w, m in zip(all_words, masses)},
+            "word_masses": {str(w): float(round(m, 4)) for w, m in zip(all_words, masses)},
             "phase_angles": phase_angles,
             "alignments": alignments,
             "morph_weights": morph_agg,
-            "ram_size": self.ram.size,
-            "vocab_size": self.V,
-            "top_k": all_words,
+            "ram_size": int(self.ram.size),
+            "vocab_size": int(self.V),
+            "top_k": [str(w) for w in all_words],
+            "beamformer": beamformer_data,
         }
 
     def judge_output(self, text):

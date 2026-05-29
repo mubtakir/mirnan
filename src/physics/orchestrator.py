@@ -36,6 +36,7 @@ class PhysicsState:
         self.is_math = False
         self.is_code = False
         self.is_english = False
+        self.is_creative = False
         self.word_count = 0
         self.cascade_enabled = False
         self.cascade_strength = 0.0
@@ -46,8 +47,15 @@ class PhysicsState:
         self.trajectory_milestone = ""
         self.interaction_trace_topics = 0
         self.heterodyne_active = 0.0
+        self.carrier_active = 0.0
+        self.beamform_active = 0.0
+        self.refractory_active = 0.0
+        self.macro_wave_active = 0.0
         self.oscillator_active = 0.0
         self.gravity_vector = 0.0
+        self.thermal_noise_level = 0.0
+        self.active_entanglements = 0.0
+        self.formed_molecules = 0
 
     def to_dict(self):
         return {
@@ -78,8 +86,15 @@ class PhysicsState:
             'trajectory_milestone': self.trajectory_milestone,
             'interaction_trace_topics': self.interaction_trace_topics,
             'heterodyne_active': round(self.heterodyne_active, 4),
+            'carrier_active': round(self.carrier_active, 4),
+            'beamform_active': round(self.beamform_active, 4),
+            'refractory_active': round(self.refractory_active, 4),
+            'macro_wave_active': round(self.macro_wave_active, 4),
             'oscillator_active': round(self.oscillator_active, 4),
             'gravity_vector': round(self.gravity_vector, 4),
+            'thermal_noise_level': round(self.thermal_noise_level, 4),
+            'active_entanglements': round(self.active_entanglements, 4),
+            'formed_molecules': self.formed_molecules,
         }
 
 
@@ -126,6 +141,7 @@ class PhysicsOrchestrator:
             'wave': self.gen._wave_generate,
             'poetic': self.gen._poetic_generate,
             'code': self.gen._code_generate,
+            'creative': self.gen._creative_generate,
         }
 
         if self.state.mode in mode_map:
@@ -157,11 +173,15 @@ class PhysicsOrchestrator:
         math_keywords = {'حساب', 'math', 'calculate', 'solve', '+', '-', '*', '/'}
         code_keywords = {'code', 'function', 'def ', 'class ', 'import', 'print'}
         poetic_keywords = {'شعر', 'قصيدة', 'بيت', 'poem', 'verse'}
+        creative_keywords = {'إبداع', 'خيال', 'تخيل', 'ابتكر', 'اكتب', 'creative', 'imagine', 'invent'}
 
         prompt_lower = prompt.lower()
         words = set(prompt.split())
 
-        if words & math_keywords or any(c in prompt for c in '+-*/='):
+        if words & creative_keywords:
+            self.state.mode = 'creative'
+            self.state.is_creative = True
+        elif words & math_keywords or any(c in prompt for c in '+-*/='):
             self.state.mode = 'quantum'
             self.state.is_math = True
         elif words & code_keywords or 'def ' in prompt or 'class ' in prompt:
@@ -174,9 +194,12 @@ class PhysicsOrchestrator:
             self.state.mode = 'multiverse'
         else:
             # كشف إن كان الحوار مطلوباً
-            is_dialogue, intent, conf = self.gen.dialogue_engine.detect_need_for_dialogue(prompt)
-            if is_dialogue and conf > 0.6:
-                self.state.mode = 'dialogue'
+            if self.gen.dialogue_engine is not None:
+                is_dialogue, intent, conf = self.gen.dialogue_engine.detect_need_for_dialogue(prompt)
+                if is_dialogue and conf > 0.6:
+                    self.state.mode = 'dialogue'
+                else:
+                    self.state.mode = 'standard'
             else:
                 self.state.mode = 'standard'
 
@@ -242,8 +265,21 @@ class PhysicsOrchestrator:
         self.state.temperature = 1.0 / max(self.state.beta, 0.1)
 
         self.state.heterodyne_active = float(gen.W.get('heterodyne', 0.0))
+        self.state.carrier_active = float(gen.W.get('carrier', 0.0))
+        self.state.beamform_active = float(gen.W.get('beamform', 0.0))
+        self.state.refractory_active = float(gen.W.get('refractory', 0.0))
+        self.state.macro_wave_active = float(gen.W.get('macro_wave', 0.0))
         self.state.oscillator_active = float(gen.W.get('oscillator', 0.0))
         self.state.gravity_vector = float(gen.W.get('gravity', 0.0))
+        
+        # استخراج مؤشرات الإبداع والتشابك
+        if hasattr(gen, 'thermal_engine'):
+            self.state.thermal_noise_level = gen.thermal_engine.base_noise * max(0.0, self.state.temperature - 0.1)
+        
+        # حساب الجزيئات المتشكلة
+        if hasattr(gen, 'molecular_binder') and result:
+            words = result.split()
+            self.state.formed_molecules = sum(1 for w in words if '_' in w)
         self._history.append({
             'prompt': prompt,
             'result': result,
