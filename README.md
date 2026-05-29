@@ -1,5 +1,7 @@
 # مِرنان V8 — Partonic Resonance
 
+**المطور وصاحب الفكرة:** باسل يحيى عبدالله (Basil Yahya Abdullah)
+
 **Physics-Inspired Dynamical Language Model** — توليد اللغة العربية والإنجليزية من الموجات الطيفية، فيزياء الحروف، ميكانيكا الكم، والجاذبية الدلالية، بدون شبكات عصبية أو backpropagation.
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
