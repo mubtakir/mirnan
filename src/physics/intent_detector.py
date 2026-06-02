@@ -4,99 +4,35 @@
 الاستدلال هرمي: كلمة مفتاحية → يقين عال | غير ذلك → أقرب متجه طوري.
 
 لا تدريب. لا backprop. مجرد إسقاط في فضاء 64D.
+
+البيانات تُحمّل من data/intent_patterns.json (ملف خارجي — عدّله دون لمس الكود).
 """
+import os
+import json
 import numpy as np
 from src.physics.constants import PHASE_DIM, ROOT_DIMS, EXTRA_DIMS
 from src.physics.word_physics import compute_extended_phase_vector
 
 INTENT_DIM = PHASE_DIM + ROOT_DIMS + EXTRA_DIMS  # 36D للتمييز
 
-# كلمات مفتاحية أولية — يقين عال (1.0) إذا وُجدت
-_INTENT_KEYWORDS = {
-    "GREETING": ["السلام عليكم", "مرحبا", "أهلا", "صباح", "مساء", "تحيات", "hi", "hello",
-                 "السلام"],
-    "QUESTION": ["كيف", "ماذا", "لماذا", "أين", "متى", "هل", "أي",
-                 "ما اسم", "ما الأمر", "ما الخبر", "what", "when", "where", "why", "how",
-                 "who", "which", "is this", "are you", "do you",
-                 "question", "ask", "tell me what", "tell me how"],
-    "COMMAND": ["افعل", "اكتب", "قل", "احسب", "اشرح", "حلل", "لخص", "ترجم",
-                "افتح", "أغلق", "شغل", "أطفئ", "do", "write", "tell", "explain",
-                "run", "open", "close", "show", "give"],
-    "REQUEST": ["من فضلك", "لو سمحت", "أريد", "أرجوك", "هل يمكن",
-                "ساعدني", "أعني", "please", "can you", "could you", "would you",
-                "i want", "i need"],
-    "FAREWELL": ["مع السلامة", "إلى اللقاء", "وداعا", "باي", "في أمان الله",
-                 "goodbye", "bye", "see you", "farewell"],
-    "OPINION": ["أعتقد", "برأيي", "أظن", "أرى", "يبدو", "اعتقاد",
-                "من وجهة", "حسب علمي", "think", "believe", "opinion", "i think"],
-    "SUGGESTION": ["دعنا", "لن", "لم لا", "ماذا لو", "أقترح", "يقترح",
-                   "الأفضل", "ربما", "let's", "why not", "suggest", "maybe",
-                   "how about", "what about"],
-    "COMPLAINT": ["مشكلة", "خطأ", "أشتكي", "شكوى", "لا يعمل", "سيء", "مزعج",
-                  "لا يعمل", "غير جيد", "problem", "bug", "error", "broken",
-                  "doesn't work", "not working", "issue"],
-    "PROMISE": ["أعدك", "سأفعل", "أضمن", "ألتزم", "موعد",
-                "أقسم", "سأحرص", "promise", "i swear", "i guarantee",
-                "i will", "i shall"],
-    "THANK": ["شكرا", "شكراً", "جزاك", "بارك", "أشكر", "ممنون",
-              "thank", "thanks", "grateful", "appreciate", "much obliged"],
-}
 
-# تمثيلات كل intent: جمل كانونية تعبر عن القصد
-_INTENT_CANONICAL = {
-    "GREETING": [
-        "السلام عليكم", "مرحبا", "أهلا", "صباح الخير", "مساء الخير",
-        "كيف الحال", "تحياتي", "السلام", "hi", "hello", "مرحباً",
-    ],
-    "QUESTION": [
-        "كيف", "ماذا", "لماذا", "أين", "متى", "هل",
-        "من", "كم", "أي", "أليس", "أينما",
-        "كيفك", "ما اسمك", "ما الأمر", "ما الخبر",
-    ],
-    "COMMAND": [
-        "افعل", "اكتب", "قل", "أعلمني", "أخبرني",
-        "احسب", "اشرح", "حلل", "لخص", "ترجم",
-        "do", "write", "tell", "explain",
-    ],
-    "REQUEST": [
-        "من فضلك", "لو سمحت", "أريد", "هل يمكن",
-        "أرجوك", "هل تستطيع", "أتريد", "أطلب",
-        "please", "can you", "I want", "would you",
-    ],
-    "FAREWELL": [
-        "مع السلامة", "إلى اللقاء", "وداعا", "باي",
-        "goodbye", "bye", "سلام", "في أمان الله",
-    ],
-    "STATEMENT": [
-        "إن", "أن", "لقد", "قد", "كان",
-        "يكون", "ليس", "سوف", "سأ", "هذا",
-    ],
-    "OPINION": [
-        "أعتقد", "برأيي", "في رأي", "أظن", "أرى",
-        "من وجهة نظري", "يبدو", "الاعتقاد", "حسب علمي",
-        "i think", "i believe", "in my opinion", "it seems",
-    ],
-    "SUGGESTION": [
-        "لن", "دعنا", "لم لا", "ماذا لو", "أقترح",
-        "الأفضل", "ربما", "يمكننا", "يقترح",
-        "let's", "why not", "suggest", "maybe we should",
-    ],
-    "COMPLAINT": [
-        "أشتكي", "مشكلة", "خطأ", "سيء", "لا يعمل",
-        "متعب", "صعب", "مزعج", "غير جيد",
-        "complain", "problem", "bug", "doesn't work",
-    ],
-    "PROMISE": [
-        "أعدك", "سأفعل", "سأحرص", "أضمن", "ألتزم",
-        "بكل تأكيد", "سأحاول", "لن أخذلك", "موعد",
-        "promise", "i will", "i swear", "i guarantee",
-    ],
-    "THANK": [
-        "شكرا", "جزاك الله", "بارك الله", "أشكرك",
-        "متشكر", "ممنون", "thank you", "thanks", "appreciate",
-        "much obliged", "grateful",
-    ],
-}
+def _load_intent_data():
+    """تحميل أنماط القصد من ملف JSON خارجي."""
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                        'data', 'intent_patterns.json')
+    if os.path.exists(path):
+        with open(path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        intents = data.get('intents', {})
+        keywords = {}
+        canonical = {}
+        for name, info in intents.items():
+            keywords[name] = info.get('keywords', [])
+            canonical[name] = info.get('canonical', [])
+        return keywords, canonical
+    return {}, {}
+
+_INTENT_KEYWORDS, _INTENT_CANONICAL = _load_intent_data()
 
 
 class IntentDetector:
@@ -143,10 +79,11 @@ class IntentDetector:
                 self._intent_pvs[intent_name] = attractor
 
     def detect(self, text):
-        """كشف القصد من نص باستدلال هرمي.
+        """كشف القصد عبر الطور أولاً، مع تعزيز بالكلمات المفتاحية.
 
-        1) كلمة مفتاحية أولية → يقين 1.0
-        2) غير ذلك → أقرب متجه طوري (36D: phase + root + extra)
+        الفلسفة: القصد ليس كلمة — بل موجة. متجه الطور للجملة يُسقط
+        على متجهات الأقاصد الكانونية. الكلمات المفتاحية تُعزّز الثقة
+        لكنها لا تُحدد القصد وحدها.
 
         Returns dict:
             intent: القصد المكتشف
@@ -156,32 +93,47 @@ class IntentDetector:
         if not text:
             return {"intent": "STATEMENT", "confidence": 0.0, "distances": {}}
 
-        words = text.split()
-        if not words:
+        # ١) الإسقاط الطوري — الأساس
+        input_pv = self._phrase_pv(text)
+        if input_pv is None:
             return {"intent": "STATEMENT", "confidence": 0.0, "distances": {}}
 
-        # 1) كلمات مفتاحية
+        distances = {}
+        for name, attractor in self._intent_pvs.items():
+            cos_sim = float(np.mean(np.cos(input_pv[:INTENT_DIM] - attractor[:INTENT_DIM])))
+            distances[name] = cos_sim
+
+        # ٢) تعزيز الكلمات المفتاحية (يعزز الثقة، لا يحدد القصد)
         text_lower = text.lower()
-        words = set(text_lower.split())
-        keyword_hits = {}
+        words_set = set(text_lower.split())
+        keyword_boost = {}
         for intent_name, kws in _INTENT_KEYWORDS.items():
             for kw in sorted(kws, key=len, reverse=True):
                 multi = kw.split()
                 if len(multi) > 1:
                     if kw in text_lower:
-                        keyword_hits[intent_name] = keyword_hits.get(intent_name, 0) + 1
+                        keyword_boost[intent_name] = keyword_boost.get(intent_name, 0) + 1
                         break
                 else:
-                    if kw in words:
-                        keyword_hits[intent_name] = keyword_hits.get(intent_name, 0) + 1
+                    if kw in words_set:
+                        keyword_boost[intent_name] = keyword_boost.get(intent_name, 0) + 1
                         break
-        if keyword_hits:
-            best_kw = max(keyword_hits, key=keyword_hits.get)
-            return {
-                "intent": best_kw,
-                "confidence": 1.0,
-                "distances": {k: 0.0 for k in self._intent_pvs},
-            }
+
+        # تعزيز المسافة الطورية للقصد المطابق كلماتياً
+        for intent_name, boost in keyword_boost.items():
+            if intent_name in distances:
+                distances[intent_name] += boost * 0.15  # تعزيز خفيف
+
+        best = max(distances, key=distances.get)
+        raw_confidence = distances[best]
+        min_dist = min(distances.values())
+        confidence = max(0.0, min(1.0, (raw_confidence - min_dist + 0.3)))
+
+        return {
+            "intent": best,
+            "confidence": confidence,
+            "distances": distances,
+        }
 
         # 2) المتجهات الطورية
         input_pv = self._phrase_pv(text)

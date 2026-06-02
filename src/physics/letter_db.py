@@ -24,17 +24,15 @@ class LetterDB:
                                 "data", "letter_physics_matrix.json")
         self.data = {}
         self.dim_names = DIM_NAMES
-        self.dim = len(self.dim_names)
+        from src.physics.constants import PHASE_DIM
+        self.dim = PHASE_DIM
         if os.path.exists(path):
             with open(path, encoding="utf-8") as f:
                 raw = json.load(f)
             for ch, info in raw.get("letters", {}).items():
-                v = info.get("v", [0]*self.dim)
-                if len(v) < self.dim:
-                    v = list(v) + [0.0] * (self.dim - len(v))
-                elif len(v) > self.dim:
-                    v = list(v)[:self.dim]
-                v = np.array(v, dtype=np.float64)
+                seed = 42 + sum(ord(c) for c in ch)
+                state = np.random.RandomState(seed)
+                v = state.choice([-1, 1], size=self.dim).astype(np.int8)
                 self.data[ch] = {
                     "vector": v,
                     "operator": info.get("operator", "0"),
@@ -46,7 +44,20 @@ class LetterDB:
                 }
 
     def get_vector(self, letter):
-        return self.data.get(letter, {}).get("vector", np.zeros(self.dim))
+        if letter not in self.data:
+            seed = 42 + sum(ord(c) for c in letter)
+            state = np.random.RandomState(seed)
+            v = state.choice([-1, 1], size=self.dim).astype(np.int8)
+            self.data[letter] = {
+                "vector": v,
+                "operator": "0",
+                "activation": 0.0,
+                "spin": 0.0,
+                "articulation": "",
+                "manner": "",
+                "meaning": "",
+            }
+        return self.data[letter]["vector"]
 
     def get_operator(self, letter):
         return self.data.get(letter, {}).get("operator", "0")
@@ -60,4 +71,5 @@ class LetterDB:
         return float(np.linalg.norm(self.get_vector(letter)))
 
     def has(self, letter):
-        return letter in self.data
+        return True
+

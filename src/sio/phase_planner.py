@@ -17,6 +17,7 @@
 """
 
 import numpy as np
+from src.physics.constants import PHASE_DIM
 
 
 class PhasePlanner:
@@ -139,7 +140,7 @@ class PhasePlanner:
                 if pv is not None:
                     pvs.append(pv)
             if pvs:
-                return np.mean([p[:22] for p in pvs], axis=0)
+                return np.mean([p[:PHASE_DIM] for p in pvs], axis=0)
         except Exception:
             pass
         return None

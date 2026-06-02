@@ -147,7 +147,7 @@ class CarrierWaveEngine:
                             ctx_aligns.append(max(0.0, sim))
                     if ctx_aligns:
                         combined_score = modulation_strength * (0.25 + 0.75 * np.mean(ctx_aligns))
-                except Exception:
+                except (np.linalg.LinAlgError, ValueError, KeyError):
                     pass
 
             if combined_score > 0.01:
@@ -218,3 +218,67 @@ class CarrierWaveEngine:
         self._freq_cache.clear()
         self._carrier_freqs.clear()
         self._mod_frequencies.clear()
+
+    def bootstrap_from_vocab(self, vocab):
+        """بناء أطياف أولية خفيفة من المعجم مباشرة (بدون نصوص تدريبية).
+
+        يستخدم فئات الكلمات الدلالية كبديل عن التلازم السياقي:
+        كل كلمة تصبح حاملة لكل الكلمات التي تتشابه معها طورياً.
+        """
+        if self.is_built:
+            return
+        from src.physics.word_physics import compute_word_phase_vector, phase_similarity
+
+        n = len(vocab)
+        if n == 0:
+            return
+
+        import random
+        sample_size = min(n, 5000)
+        sampled_ids = random.sample(range(n), sample_size)
+
+        # Precompute vectors to avoid O(N^2) calculations of phase vectors
+        pvs = {}
+        for wid in sampled_ids:
+            word = vocab.id2word.get(wid, '')
+            if word and len(word) >= 2:
+                try:
+                    pvs[wid] = compute_word_phase_vector(word)
+                except Exception:
+                    pass
+
+        valid_ids = [wid for wid in sampled_ids if wid in pvs]
+        if valid_ids:
+            matrix = np.array([pvs[wid] for wid in valid_ids], dtype=np.float32)
+            norms = np.linalg.norm(matrix, axis=1, keepdims=True)
+            norms = np.where(norms > 1e-10, norms, 1e-10)
+            normalized_matrix = matrix / norms
+            sim_matrix = np.dot(normalized_matrix, normalized_matrix.T)
+            
+            id_to_idx = {wid: idx for idx, wid in enumerate(valid_ids)}
+            
+            for carrier_id in valid_ids:
+                carrier_idx = id_to_idx[carrier_id]
+                spectrum = {}
+                for comp_id in valid_ids:
+                    if comp_id == carrier_id:
+                        continue
+                    comp_idx = id_to_idx[comp_id]
+                    sim = float(sim_matrix[carrier_idx, comp_idx])
+                    if sim > 0.3:
+                        spectrum[comp_id] = sim * 0.5
+                if spectrum:
+                    self._carrier_spectra[carrier_id] = spectrum
+
+        for wid in self._carrier_spectra:
+            word = vocab.id2word.get(wid, '')
+            if word:
+                self._carrier_freqs[wid] = self.get_word_freq(word)
+
+        for wid in range(n):
+            word = vocab.id2word.get(wid, '')
+            if word:
+                self._mod_frequencies[wid] = self.get_word_freq(word)
+
+        self.is_built = True
+        print(f"[CarrierWave] Bootstrapped {len(self._carrier_spectra)} carriers from vocab")

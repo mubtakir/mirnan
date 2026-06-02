@@ -1,0 +1,110 @@
+{
+  "description": "Mirnan systematic evaluation benchmark — 80 questions across 5 categories",
+  "categories": {
+    "factual_recall": {
+      "description": "Simple factual questions with one correct answer",
+      "questions": [
+        {"prompt": "ما هي عاصمة فرنسا", "expected": ["باريس"], "mode": "standard"},
+        {"prompt": "ما هي عاصمة مصر", "expected": ["القاهرة"], "mode": "standard"},
+        {"prompt": "ما هي عاصمة اليابان", "expected": ["طوكيو"], "mode": "standard"},
+        {"prompt": "ما هي عاصمة بريطانيا", "expected": ["لندن"], "mode": "standard"},
+        {"prompt": "ما هي عاصمة السعودية", "expected": ["الرياض"], "mode": "standard"},
+        {"prompt": "ما هي عاصمة ألمانيا", "expected": ["برلين"], "mode": "standard"},
+        {"prompt": "ما هي عاصمة إيطاليا", "expected": ["روما"], "mode": "standard"},
+        {"prompt": "ما هي عاصمة إسبانيا", "expected": ["مدريد"], "mode": "standard"},
+        {"prompt": "ما هي عاصمة روسيا", "expected": ["موسكو"], "mode": "standard"},
+        {"prompt": "ما هي عاصمة تركيا", "expected": ["أنقرة"], "mode": "standard"},
+        {"prompt": "ما هي عاصمة إيران", "expected": ["طهران"], "mode": "standard"},
+        {"prompt": "ما هي عاصمة الهند", "expected": ["نيودلهي"], "mode": "standard"},
+        {"prompt": "ما هي عاصمة العراق", "expected": ["بغداد"], "mode": "standard"},
+        {"prompt": "ما هي عاصمة سوريا", "expected": ["دمشق"], "mode": "standard"},
+        {"prompt": "ما هي عاصمة الأردن", "expected": ["عمان"], "mode": "standard"},
+        {"prompt": "ما هي عاصمة لبنان", "expected": ["بيروت"], "mode": "standard"},
+        {"prompt": "ما هي عاصمة السودان", "expected": ["الخرطوم"], "mode": "standard"},
+        {"prompt": "ما هي عاصمة ليبيا", "expected": ["طرابلس"], "mode": "standard"},
+        {"prompt": "ما هي عاصمة المغرب", "expected": ["الرباط"], "mode": "standard"},
+        {"prompt": "ما هي عاصمة اليمن", "expected": ["صنعاء"], "mode": "standard"}
+      ]
+    },
+    "transitive_reasoning": {
+      "description": "Multi-hop reasoning requiring KB chaining",
+      "questions": [
+        {"prompt": "باريس في فرنسا. فرنسا في أوروبا. أين باريس", "expected": ["فرنسا", "أوروبا"], "mode": "reason"},
+        {"prompt": "السكين مصنوع من معدن. المعدن يستخرج من خام. الخام يوجد في جبال. من أين يأتي السكين", "expected": ["معدن", "خام", "جبال"], "mode": "reason"},
+        {"prompt": "الثلج يذوب ويصبح ماء. الماء يغلي ويصبح بخار. ماذا يصبح الثلج إذا سخن", "expected": ["ماء", "بخار"], "mode": "reason"},
+        {"prompt": "الورق مصنوع من خشب. الخشب يأتي من شجر. من أين يأتي الورق", "expected": ["خشب", "شجر"], "mode": "reason"},
+        {"prompt": "الخبز مصنوع من قمح. القمح ينمو في أرض. من أين يأتي الخبز", "expected": ["قمح", "أرض"], "mode": "reason"},
+        {"prompt": "لندن في بريطانيا. بريطانيا في أوروبا. أين لندن", "expected": ["بريطانيا", "أوروبا"], "mode": "reason"},
+        {"prompt": "القاهرة في مصر. مصر في أفريقيا. أين القاهرة", "expected": ["مصر", "أفريقيا"], "mode": "reason"},
+        {"prompt": "طوكيو في اليابان. اليابان في آسيا. أين طوكيو", "expected": ["اليابان", "آسيا"], "mode": "reason"},
+        {"prompt": "الرياض في السعودية. السعودية في آسيا. أين الرياض", "expected": ["السعودية", "آسيا"], "mode": "reason"},
+        {"prompt": "نيويورك في أمريكا. أمريكا قارة. أين نيويورك", "expected": ["أمريكا"], "mode": "reason"},
+        {"prompt": "الزجاج مصنوع من رمل. من أين يأتي الزجاج", "expected": ["رمل"], "mode": "reason"},
+        {"prompt": "الحرير ينتجه دودة. من أين يأتي الحرير", "expected": ["دودة"], "mode": "reason"},
+        {"prompt": "العسل ينتجه نحل. من أين يأتي العسل", "expected": ["نحل"], "mode": "reason"},
+        {"prompt": "السكر يستخرج من قصب. من أين يأتي السكر", "expected": ["قصب"], "mode": "reason"},
+        {"prompt": "الزيت يستخرج من زيتون. من أين يأتي الزيت", "expected": ["زيتون"], "mode": "reason"}
+      ]
+    },
+    "common_sense": {
+      "description": "Everyday knowledge and physical intuition",
+      "questions": [
+        {"prompt": "ماذا يحدث إذا وضعت ماء في الثلاجة", "expected": ["ثلج", "تجمد", "بارد"], "mode": "standard"},
+        {"prompt": "ماذا يحدث إذا سخنت ماء", "expected": ["بخار", "غليان", "ساخن"], "mode": "standard"},
+        {"prompt": "ماذا يحدث إذا تركت حديد في المطر", "expected": ["صدأ"], "mode": "standard"},
+        {"prompt": "من ماذا يصنع الورق", "expected": ["خشب"], "mode": "standard"},
+        {"prompt": "من ماذا يصنع الخبز", "expected": ["قمح"], "mode": "standard"},
+        {"prompt": "أين تعيش السمكة", "expected": ["ماء", "بحر", "نهر"], "mode": "standard"},
+        {"prompt": "أين يعيش الطائر", "expected": ["سماء", "عش", "شجر"], "mode": "standard"},
+        {"prompt": "ماذا تحتاج النار", "expected": ["أكسجين", "هواء"], "mode": "standard"},
+        {"prompt": "ما هو لون الثلج", "expected": ["أبيض"], "mode": "standard"},
+        {"prompt": "ما هو لون السماء", "expected": ["أزرق"], "mode": "standard"},
+        {"prompt": "متى تشرق الشمس", "expected": ["صباح"], "mode": "standard"},
+        {"prompt": "متى يظهر القمر", "expected": ["ليل"], "mode": "standard"},
+        {"prompt": "ما هو فصل الشتاء", "expected": ["بارد", "ثلج"], "mode": "standard"},
+        {"prompt": "ما هو فصل الصيف", "expected": ["حار", "شمس"], "mode": "standard"},
+        {"prompt": "أين يعمل الطبيب", "expected": ["مستشفى"], "mode": "standard"}
+      ]
+    },
+    "morphology_engine": {
+      "description": "Arabic morphology tested via engine (antonyms, plurals, feminine)",
+      "questions": [
+        {"prompt": "ضد كلمة كبير", "expected": ["صغير"], "mode": "antonym"},
+        {"prompt": "ضد كلمة طويل", "expected": ["قصير"], "mode": "antonym"},
+        {"prompt": "ضد كلمة سريع", "expected": ["بطيء"], "mode": "antonym"},
+        {"prompt": "ضد كلمة جميل", "expected": ["قبيح"], "mode": "antonym"},
+        {"prompt": "ضد كلمة قوي", "expected": ["ضعيف"], "mode": "antonym"},
+        {"prompt": "ضد كلمة غني", "expected": ["فقير"], "mode": "antonym"},
+        {"prompt": "ضد كلمة حار", "expected": ["بارد"], "mode": "antonym"},
+        {"prompt": "ضد كلمة بارد", "expected": ["حار"], "mode": "antonym"},
+        {"prompt": "ضد كلمة نور", "expected": ["ظلام"], "mode": "antonym"},
+        {"prompt": "ضد كلمة ليل", "expected": ["نهار"], "mode": "antonym"},
+        {"prompt": "ضد كلمة خير", "expected": ["شر"], "mode": "antonym"},
+        {"prompt": "ضد كلمة صدق", "expected": ["كذب"], "mode": "antonym"},
+        {"prompt": "ضد كلمة حياة", "expected": ["موت"], "mode": "antonym"},
+        {"prompt": "ضد كلمة حلو", "expected": ["مر"], "mode": "antonym"},
+        {"prompt": "ضد كلمة أبيض", "expected": ["أسود"], "mode": "antonym"},
+        {"prompt": "جمع كلمة كتاب", "expected": ["كتب"], "mode": "plural"},
+        {"prompt": "جمع كلمة قلم", "expected": ["أقلام"], "mode": "plural"},
+        {"prompt": "جمع كلمة طالب", "expected": ["طلاب"], "mode": "plural"},
+        {"prompt": "جمع كلمة معلم", "expected": ["معلمون"], "mode": "plural"},
+        {"prompt": "جمع كلمة مدرسة", "expected": ["مدارس"], "mode": "plural"}
+      ]
+    },
+    "open_ended": {
+      "description": "Open-ended generation evaluated on relevance and coherence",
+      "questions": [
+        {"prompt": "اكتب جملة عن البحر", "expected": ["ماء", "موج", "سمك", "سفينة", "ملح"], "mode": "standard", "keywords": true},
+        {"prompt": "اكتب جملة عن الصحراء", "expected": ["رمل", "جمل", "حار", "شمس", "واحة"], "mode": "standard", "keywords": true},
+        {"prompt": "اكتب جملة عن الشتاء", "expected": ["برد", "ثلج", "مطر", "دفء", "نار"], "mode": "standard", "keywords": true},
+        {"prompt": "اكتب جملة عن الربيع", "expected": ["زهر", "ورد", "أخضر", "شمس", "هواء"], "mode": "standard", "keywords": true},
+        {"prompt": "اكتب جملة عن المدرسة", "expected": ["معلم", "طالب", "كتاب", "درس", "علم"], "mode": "standard", "keywords": true},
+        {"prompt": "اكتب جملة عن المستشفى", "expected": ["طبيب", "مريض", "دواء", "صحة", "علاج"], "mode": "standard", "keywords": true},
+        {"prompt": "اكتب جملة عن الطائرة", "expected": ["سماء", "سفر", "مطار", "طيار", "جناح"], "mode": "standard", "keywords": true},
+        {"prompt": "اكتب جملة عن السوق", "expected": ["بيع", "شراء", "خضار", "فاكهة", "ناس"], "mode": "standard", "keywords": true},
+        {"prompt": "اكتب جملة عن الحديقة", "expected": ["شجر", "ورد", "عشب", "طفل", "لعب"], "mode": "standard", "keywords": true},
+        {"prompt": "اكتب جملة عن المطبخ", "expected": ["طعام", "طبخ", "نار", "ماء", "أكل"], "mode": "standard", "keywords": true}
+      ]
+    }
+  }
+}

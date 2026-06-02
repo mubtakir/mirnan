@@ -1,6 +1,7 @@
 import sys
+import os
 
-path = r'C:\Users\allmy\Desktop\aaa\mirnan\src\physics\generator.py'
+path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src', 'physics', 'generator.py')
 
 with open(path, 'r', encoding='utf-8') as f:
     content = f.read()

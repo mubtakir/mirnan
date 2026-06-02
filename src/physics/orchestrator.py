@@ -112,8 +112,8 @@ class PhysicsOrchestrator:
         try:
             from src.physics.multi_pass_generator import MultiPassGenerator
             self.multi_pass = MultiPassGenerator(generator)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"MultiPassGenerator غير متاح: {e}")
 
     def generate(self, prompt, max_words=12, mode='auto', **kwargs):
         """توليد مع اختيار الوضع تلقائياً أو يدوياً.
@@ -142,6 +142,7 @@ class PhysicsOrchestrator:
             'poetic': self.gen._poetic_generate,
             'code': self.gen._code_generate,
             'creative': self.gen._creative_generate,
+            'math': self.gen._stepwise_generate,
         }
 
         if self.state.mode in mode_map:
@@ -256,8 +257,8 @@ class PhysicsOrchestrator:
             for w in result.split():
                 try:
                     masses.append(gen._dyn_mass(w))
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"تعذر حساب كتلة '{w}': {e}")
             if masses:
                 self.state.mass_mean = float(np.mean(masses))
                 self.state.mass_std = float(np.std(masses))

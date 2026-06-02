@@ -36,16 +36,10 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
         
     - name: Run Core Physics & Linguistic Engine Tests
-      run: python -m unittest tests/test_prds.py
-      
-    - name: Run Conversational & Decision Making Tests
-      run: python -m unittest tests/test_conversational.py
-      
-    - name: Run Phase-Symbolic Hybrid Reasoning Tests
-      run: python -m unittest tests/test_reasoning.py
-      
-    - name: Run Torture Test Suite (Stress Testing)
-      run: python -m unittest tests/test_torture.py
-      
-    - name: Run Committee Auto-Demo Simulation
-      run: python auto_demo.py
+      run: python -m pytest tests/ -v
+
+    - name: Run Standard Test Suite
+      run: python -m unittest discover -s tests -p "test_*.py"
+
+    - name: Lint with flake8 (extended)
+      run: flake8 src/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics

@@ -19,6 +19,7 @@
 """
 import numpy as np
 import logging
+from src.physics.constants import PHASE_DIM
 
 logger = logging.getLogger(__name__)
 
@@ -193,8 +194,8 @@ class ResonanceCalibrator:
 
         if len(context_pvs) > 0:
             target = np.mean(context_pvs, axis=0)
-            correct_align = float(np.dot(correct_pv[:22], target[:22])) / (
-                max(np.linalg.norm(correct_pv[:22]), 1e-10) * max(np.linalg.norm(target[:22]), 1e-10)
+            correct_align = float(np.dot(correct_pv[:PHASE_DIM], target[:PHASE_DIM])) / (
+                max(np.linalg.norm(correct_pv[:PHASE_DIM]), 1e-10) * max(np.linalg.norm(target[:PHASE_DIM]), 1e-10)
             )
         else:
             correct_align = 0.0

@@ -1,6 +1,16 @@
 import numpy as np
 
 
+def _zeta_response(x: float, s: float = 2.0) -> float:
+    """استجابة ترددية مستوحاة من دالة زيتا — خط التوازن σ=1/2.
+
+    تُعطي أقصى رنين عند cos≈0.5 (خط الاستواء)، وتُثبّط الأطراف.
+    ζ(x) = 1 / (1 + (x-0.5)²)^(s/2)  — نواة لورنتزية متمركزة عند 0.5
+    """
+    delta = x - 0.5
+    return 1.0 / (1.0 + delta * delta) ** (s * 0.5)
+
+
 class ResonantChain:
     """Each adjacent word pair in a sentence forms an LC tank circuit.
 
@@ -48,6 +58,10 @@ class ResonantChain:
                         pv_prev: np.ndarray, pv_cand: np.ndarray,
                         prev_freqs: list = None) -> float:
         f_cand = self.pair_freq(mass_prev, mass_cand, pv_prev, pv_cand)
+        # ═══ زيتا: تعزيز الرنين عند cos≈0.5 (خط التوازن) ═══
+        cos_theta = float(np.dot(pv_prev, pv_cand))
+        cos_theta = max(-1.0, min(1.0, cos_theta))
+        zeta_boost = _zeta_response(cos_theta)
         if prev_freqs and len(prev_freqs) > 0:
             mean_prev = np.mean(prev_freqs)
             std_prev = np.std(prev_freqs) + 1e-12
@@ -55,4 +69,4 @@ class ResonantChain:
             score = np.exp(-0.5 * (delta / std_prev) ** 2)
         else:
             score = 1.0
-        return float(score)
+        return float(score * zeta_boost)  # زيتا: تضخيم الرنين المتوازن

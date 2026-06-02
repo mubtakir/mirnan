@@ -8,6 +8,8 @@ if hasattr(sys.stdout, 'reconfigure') and "pytest" not in sys.modules:
     sys.stdout.reconfigure(encoding='utf-8')
 import numpy as np
 import json
+import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -15,21 +17,14 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 
+logger = logging.getLogger('mirnan_api')
+logging.basicConfig(level=logging.INFO, format='%(message)s')
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 import model as mirnan_model
 from src.physics.generator import Generator
 from src.physics.orchestrator import PhysicsOrchestrator
-
-app = FastAPI(title="mirnan V8 API", description="Partonic Resonance — DM · PPS · CFF · HWM")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 mirnan_orch = None
 _sio_orch = None
@@ -44,7 +39,7 @@ def get_orch():
         raise HTTPException(status_code=503, detail="Model is loading, please retry in a moment")
     _loading = True
     try:
-        print("Loading mirnan V8...")
+        logger.info("Loading mirnan V8...")
         t0 = time.time()
         data = mirnan_model.load_model()
         gen = Generator(
@@ -52,20 +47,32 @@ def get_orch():
             syntax_field=data['syntax'],
             K_syn=data.get('K_syn'),
             K_dialogue=data.get('K_dial'),
+            config={'fast_init': True, 'holographic_kb': {'enabled': False}},
         )
         mirnan_orch = PhysicsOrchestrator(gen)
-        print(f"* Loaded {len(data['vocab']):,} words in {time.time()-t0:.1f}s")
+        logger.info(f"* Loaded {len(data['vocab']):,} words in {time.time()-t0:.1f}s")
         return mirnan_orch
     finally:
         _loading = False
 
 
-@app.on_event("startup")
-async def startup():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     global mirnan_orch
-    print("Loading mirnan V8 on startup (this takes ~3 minutes)...")
+    logger.info("Loading mirnan V8 on startup...")
     get_orch()
+    yield
 
+
+app = FastAPI(title="mirnan V8 API", description="Partonic Resonance — DM · PPS · CFF · HWM", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ═══ SIO — Synthetic Intelligence Orchestrator ═══
 
@@ -92,7 +99,6 @@ class ChatRequest(BaseModel):
     cascade: Optional[bool] = None
     cascade_strength: Optional[float] = None
     dialogue: Optional[bool] = None
-    weighted: Optional[bool] = None
 
 
 class ChatResponse(BaseModel):

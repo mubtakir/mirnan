@@ -36,6 +36,8 @@
                         <option value="multiverse">Multiverse</option>
                         <option value="poetic">Poetic (شعر)</option>
                         <option value="code">Code (Python)</option>
+                        <option value="math">Math (حساب)</option>
+                        <option value="physics">Physics Trace (تتبع فيزيائي)</option>
                         <option value="attract">Field (حقل الجذب والتنافر)</option>
                         <option value="synthesize">SIO (ذكاء توليفي)</option>
                     </select>
@@ -52,27 +54,27 @@
                         <span id="kB-value">1.0</span>
                     </div>
                     <div class="knob toggle-knob">
-                        <label for="cascade-toggle">CASCADE</label>
+                        <label>CASCADE
                         <label class="switch">
                             <input type="checkbox" id="cascade-toggle">
                             <span class="slider round"></span>
-                        </label>
+                        </label></label>
                         <input type="range" id="cascade-strength-slider" min="1.0" max="5.0" step="0.1" value="3.0" disabled>
                         <span id="cascade-strength-value">3.0</span>
                     </div>
                     <div class="knob toggle-knob">
-                        <label for="dialogue-toggle">DIALOGUE</label>
+                        <label>DIALOGUE
                         <label class="switch">
                             <input type="checkbox" id="dialogue-toggle">
                             <span class="slider round"></span>
-                        </label>
+                        </label></label>
                     </div>
                     <div class="knob toggle-knob">
-                        <label for="weighted-toggle">POS-W</label>
+                        <label>RELAX
                         <label class="switch">
-                            <input type="checkbox" id="weighted-toggle" checked>
+                            <input type="checkbox" id="relaxation-toggle">
                             <span class="slider round"></span>
-                        </label>
+                        </label></label>
                     </div>
                 </div>
             </div>
@@ -87,7 +89,36 @@
                 </div>
             </main>
 
+            <div class="phys-trace-container" id="phys-trace-container" style="display: none;">
+                <div class="trace-header">
+                    <h2><i class="fa-solid fa-wave-square"></i> تتبع فيزيائي للجيل</h2>
+                    <div class="trace-summary" id="trace-summary"></div>
+                </div>
+                <div class="trace-steps" id="trace-steps"></div>
+                <div class="trace-charts">
+                    <div class="trace-chart" id="entropy-chart-container">
+                        <h4>تطور الإنتروبيا</h4>
+                        <canvas id="entropy-chart" width="400" height="120"></canvas>
+                    </div>
+                    <div class="trace-chart" id="coherence-chart-container">
+                        <h4>التماسك الطوري</h4>
+                        <canvas id="coherence-chart" width="400" height="120"></canvas>
+                    </div>
+                </div>
+            </div>
+
             <div class="field-results-container" id="field-results-container" style="display: none;">
+                <div class="field-columns">
+                    <div class="results-column attracted-column">
+                        <h3><i class="fa-solid fa-circle-check"></i> الكلمات المنجذبة</h3>
+                        <div class="words-list" id="attracted-words-list"></div>
+                    </div>
+                    <div class="results-column repelled-column">
+                        <h3><i class="fa-solid fa-circle-xmark"></i> الكلمات المتنافرة</h3>
+                        <div class="words-list" id="repelled-words-list"></div>
+                    </div>
+                </div>
+            </div>
 
             <div class="sio-results-container" id="sio-results-container" style="display: none;">
                 <div class="sio-header">
@@ -100,39 +131,6 @@
                 </div>
                 <div class="sio-phases" id="sio-phases"></div>
                 <div class="sio-deliverable" id="sio-deliverable"></div>
-            </div>
-
-            <div class="field-results-container" id="field-results-container" style="display: none;">
-                <div class="field-controls">
-                    <div class="control-group">
-                        <label for="vocab-type-select">معجم البحث:</label>
-                        <select id="vocab-type-select">
-                            <option value="benchmark" selected>معجم المعايرة المصغر</option>
-                            <option value="full">المعجم الكامل</option>
-                        </select>
-                    </div>
-                    <div class="control-group">
-                        <label class="switch-label">
-                            <input type="checkbox" id="hebbian-boost-toggle">
-                            تفعيل التعزيز الدلالي (Hebbian)
-                        </label>
-                    </div>
-                </div>
-                
-                <div class="field-columns">
-                    <div class="results-column attracted-column">
-                        <h3><i class="fa-solid fa-circle-check"></i> الكلمات المنجذبة (توافق طوري)</h3>
-                        <div class="words-list" id="attracted-words-list">
-                            <!-- سيتم ملؤها ديناميكياً -->
-                        </div>
-                    </div>
-                    <div class="results-column repelled-column">
-                        <h3><i class="fa-solid fa-circle-xmark"></i> الكلمات المتنافرة (تنافر طوري)</h3>
-                        <div class="words-list" id="repelled-words-list">
-                            <!-- سيتم ملؤها ديناميكياً -->
-                        </div>
-                    </div>
-                </div>
             </div>
 
             <aside class="calibration-sidebar" id="calibration-sidebar" style="display: none;">

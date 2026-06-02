@@ -12,6 +12,7 @@ import os, sys, time, argparse, json, logging
 import numpy as np
 import yaml
 from scipy import sparse
+import model
 from src.physics.word_physics import compute_extended_phase_vector
 from src.physics.constants import TOTAL_DIM
 from src.physics.particles import is_particle
@@ -28,15 +29,11 @@ DEFAULT_OUT = os.path.join(PROJECT, 'model')
 
 # ملفات الكوربس — يكتشف تلقائياً كل .txt في data/ ومجلداته
 def _discover_corpus_files():
-    """يُعيد dict يحتوي كل ملفات .txt في data/ مصنفة حسب النوع."""
+    """يُعيد dict يحتوي كل ملفات .txt في data/ مصنفة حسب النوع — مرتبة أبجدياً."""
     import glob
-    all_files = glob.glob(os.path.join(DATA, '**', '*.txt'), recursive=True)
+    all_files = sorted(glob.glob(os.path.join(DATA, '**', '*.txt'), recursive=True))
     all_files = [os.path.relpath(f, DATA) for f in all_files]
-    dialogue = [f for f in all_files if 'dialogue' in f.lower()]
-    main = [f for f in all_files if f not in dialogue]
     return {
-        'main': main,
-        'dialogue': dialogue,
         'all': all_files,
     }
 
@@ -72,6 +69,90 @@ def load_corpus_texts(paths):
                 texts.append(t)
                 log.info(f'  ✓ {os.path.basename(p)}: {len(t):,} حرف')
     return texts
+
+
+def _extract_dialogue_lines(texts):
+    """يستخرج سطوراً حوارية من أي نص — بغض النظر عن اسم الملف.
+
+    يكتشف الأنماط التالية:
+    - سؤال\\tجواب  (tab separation)
+    - سؤال، جواب   (comma separation)
+    - س، ج         (abbreviated)
+    - سؤال: ... جواب: ...  (colon format)
+    - Q: ... A: ...
+    - أي سطرين متتاليين أحدهما قصير (سؤال) والآخر طويل (جواب)
+
+    يُعيد قائمة نصوص حوارية منفصلة (كل زوج سؤال-جواب = نص).
+    """
+    import re
+    dialogue_texts = []
+
+    # أنماط الفصل بين السؤال والجواب
+    QA_PATTERNS = [
+        re.compile(r'(?:سؤال|س)\s*[,:،:\t]\s*(?:جواب|ج)\s*[,:،:\t]\s*', re.IGNORECASE),
+        re.compile(r'Q\s*[,:]\s*A\s*[,:]\s*', re.IGNORECASE),
+        re.compile(r'\?\s*[,،\t]\s*', re.IGNORECASE),
+    ]
+
+    for text in texts:
+        lines = text.split('\n')
+        qa_pairs = []
+
+        for i, line in enumerate(lines):
+            line = line.strip()
+            if not line:
+                continue
+
+            # النمط 1: سطر واحد فيه فاصل (tab, comma, colon)
+            for pat in QA_PATTERNS:
+                parts = pat.split(line, maxsplit=1)
+                if len(parts) == 2:
+                    q, a = parts[0].strip(), parts[1].strip()
+                    if len(q) >= 2 and len(a) >= 2:
+                        qa_pairs.append(f"{q}\n{a}")
+                        break
+
+            # النمط 2: سؤال\\tجواب (tab separated)
+            if '\t' in line and len(line.split('\t')) == 2:
+                parts = line.split('\t')
+                q, a = parts[0].strip(), parts[1].strip()
+                if 2 <= len(q) <= 50 and len(a) >= 2:
+                    qa_pairs.append(f"{q}\n{a}")
+
+            # النمط 3: سؤال: جواب (colon separated)
+            if ':' in line or ':' in line:
+                for sep in [':', '،', ':']:
+                    if sep in line:
+                        parts = line.split(sep, 1)
+                        if len(parts) == 2:
+                            q, a = parts[0].strip(), parts[1].strip()
+                            if 2 <= len(q) <= 50 and len(a) >= 2:
+                                qa_pairs.append(f"{q}\n{a}")
+                                break
+
+            # النمط 4: سطرين متتاليين — قصير (سؤال) + طويل (جواب)
+            if i + 1 < len(lines):
+                next_line = lines[i + 1].strip()
+                if (len(line) >= 5 and len(line) <= 60 and
+                    len(next_line) >= 5 and
+                    '?' in line or '؟' in line or
+                    len(next_line) > len(line) * 1.5):
+                    qa_pairs.append(f"{line}\n{next_line}")
+
+        if qa_pairs:
+            dialogue_texts.extend(qa_pairs)
+
+    # إزالة التكرارات
+    seen = set()
+    unique = []
+    for pair in dialogue_texts:
+        if pair not in seen:
+            seen.add(pair)
+            unique.append(pair)
+
+    if unique:
+        log.info(f'  ✓ استُخرج {len(unique)} زوجاً حوارياً من جميع النصوص')
+    return unique
 
 
 def train_synchronize(texts, window=5, mode='sem', vocab=None, label='K'):
@@ -153,7 +234,11 @@ def run_generation_test(vocab, K, syntax, K_dialogue=None, config=None):
     from src.physics.generator import Generator
     from src.physics.orchestrator import PhysicsOrchestrator
 
-    gen = Generator(vocab, K, syntax_field=syntax, K_dialogue=K_dialogue, config=config)
+    # Fast mode: skip expensive O(n^2) operations (RotatingAnchor, SpectralCoupling)
+    fast_config = dict(config) if config else {}
+    fast_config['holographic_kb'] = {'enabled': False}
+    gen = Generator(vocab, K, syntax_field=syntax, K_dialogue=K_dialogue,
+                    config=fast_config, corpus_texts=[])  # corpus_texts=[] skips spectral coupling
     orch = PhysicsOrchestrator(gen)
     orch.set_dialogue(True)
 
@@ -244,17 +329,17 @@ def main():
 
     # ─── المرحلة 1: تحميل الكوربسات ───
     log.info('\n─── المرحلة 1: تحميل الكوربسات ───')
-    main_paths = find_corpus_files(CORPUS_FILES['main'])
-    dialogue_paths = find_corpus_files(CORPUS_FILES['dialogue'])
     all_paths = find_corpus_files(CORPUS_FILES['all'])
 
-    if not main_paths:
+    if not all_paths:
         log.error('✗ لا توجد ملفات كوربس!')
         sys.exit(1)
 
-    main_texts = load_corpus_texts(main_paths)
-    dialogue_texts = load_corpus_texts(dialogue_paths)
     all_texts = load_corpus_texts(all_paths)
+
+    # ─── استخراج الحوارات من جميع النصوص (وليس من ملف dialogue منفصل) ───
+    log.info('\n  ─── استخراج الحوارات تلقائياً ───')
+    dialogue_texts = _extract_dialogue_lines(all_texts)
 
     # ─── المرحلة 2: بناء المعجم من جميع النصوص ───
     log.info('\n─── المرحلة 2: بناء المعجم الموحد ───')
@@ -267,25 +352,24 @@ def main():
     log.info(f'  المعجم الموحد: {len(full_vocab):,} كلمة')
 
     # ─── المرحلة 3: تدريب مصفوفات K ───
-    log.info('\n─── المرحلة 3: تدريب مصفوفات K ───')
+    log.info('\n─── المرحلة 3: تدريب مصفوفات K من جميع النصوص ───')
 
     K_sem = train_synchronize(
-        main_texts, window=5, mode='sem', vocab=full_vocab, label='K_sem (رئيسي)')
+        all_texts, window=5, mode='sem', vocab=full_vocab, label='K_sem (رئيسي)')
 
     K_syn = train_synchronize(
-        main_texts, window=2, mode='syn', vocab=full_vocab, label='K_syn (تركيبي)')
+        all_texts, window=2, mode='syn', vocab=full_vocab, label='K_syn (تركيبي)')
 
-    # SyntaxField — نأخذه من synchronize باستخدام vocab الموجود
+    # SyntaxField — يستخدم أزواج نصية (string pairs) وليس معرفات
     from src.physics.synchronize import synchronize as _sync
     log.info('  استخراج SyntaxField...')
-    _, _, syntax = _sync(main_texts, window=5, mode='sem', particle_weight=particle_w,
-                         vocab=Vocabulary())
-    # سنستخدم vocab جديد هنا لأن SyntaxField يمكن أن يكون بحجم مختلف
+    _, _, syntax = _sync(all_texts, window=5, mode='sem', particle_weight=particle_w,
+                          vocab=Vocabulary())
 
     K_dialogue = None
     if dialogue_texts:
         K_dialogue = train_synchronize(
-            dialogue_texts, window=2, mode='syn', vocab=full_vocab, label='K_dial (حواري)')
+            dialogue_texts, window=2, mode='syn', vocab=full_vocab, label='K_dial (حواري — مستخرج تلقائياً)')
 
     log.info(f'\n  ملخص K:')
     log.info(f'    K_sem (رئيسي):      {K_sem.shape}')
@@ -330,7 +414,7 @@ def main():
     for wid, word in full_vocab.id2word.items():
         if wid < len(all_pv_data) and not is_particle(word):
             all_pv_data[wid] = compute_extended_phase_vector(word, vocab=full_vocab, K=K_sem)
-    new_pv, evo_stats = phase_evo.evolve_from_corpus(all_pv_data, main_texts, full_vocab, window=5)
+    new_pv, evo_stats = phase_evo.evolve_from_corpus(all_pv_data, all_texts, full_vocab, window=5)
     log.info(f'    ✓ تطور طوري: {evo_stats["words_shifted"]} كلمة، متوسط إزاحة={evo_stats["avg_shift"]:.6f}')
 
     # ─── المرحلة 4: حفظ النموذج الأساسي ───
@@ -387,7 +471,7 @@ def main():
 
     # ─── المرحلة 6: اختبار التوليد ───
     if not args.skip_test:
-        log.info('\n─── المرحلة 5: اختبار التوليد ───')
+        log.info('\n─── المرحلة 6: اختبار التوليد ───')
         run_generation_test(full_vocab, K_sem, syntax, K_dialogue, config=config)
 
     # ─── ملخص ───
@@ -402,7 +486,7 @@ def main():
     log.info('═' * 50)
 
     # ─── المرحلة 7: معايرة الأوزان (اختيارية) ═══
-    if not args.skip_calibration and main_texts:
+    if not args.skip_calibration and all_texts:
         log.info('\n─── المرحلة 7: معايرة الأوزان الرنينية ───')
         from src.physics.resonance_calibration import ResonanceCalibrator
         from src.physics.generator import Generator
@@ -411,10 +495,10 @@ def main():
             cal_data['vocab'], cal_data['K_sem'],
             syntax_field=cal_data['syntax'],
             K_syn=cal_data['K_syn'], K_dialogue=cal_data.get('K_dial'),
-            config=config, corpus_texts=main_texts[:3],
+            config=config, corpus_texts=all_texts[:3],
         )
         calibrator = ResonanceCalibrator(config=config)
-        new_weights = calibrator.calibrate(cal_gen, main_texts[:20])
+        new_weights = calibrator.calibrate(cal_gen, all_texts[:20])
         log.info(f'  ✓ تمت معايرة {len(new_weights)} وزن')
 
 

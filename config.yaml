@@ -2,6 +2,14 @@
 # كل المعاملات هنا تتحكم في سلوك المحرك الفيزيائي أثناء التوليد والتدريب.
 # يمكن تعديلها دون تغيير الكود.
 
+# ═══ فضاء الاندماج الهندسي وكليفورد ═══
+semantic_fusion:
+  method: "projection"       # جداء كليفورد الهندسي (بدل المتوسط الخطي الخاطئ)
+  vowel_modulation: true     # تفعيل تعديل الحركات بنصف قيمة حرف المد
+  regularize: true           # تفعيل الانتظام الهندسي لتفادي أصفار الرتب الدلالية
+
+
+
 # ═══ معامل ألفا — خلط السياق في المتجه الطوري ═══
 # كلما زاد alpha، زاد تأثير السياق المحيط على معنى الكلمة.
 # القيمة الأصلية: 0.3 — نرفعها لـ 0.5 لدقة أعلى.
@@ -14,7 +22,7 @@ dccf:
 
 # ═══ PotentialCascade — طبقة الهوي التراكمي ═══
 cascade:
-  enabled: false            # تفعيل/تعطيل الهوي التراكمي
+  enabled: true             # تفعيل الهوي التراكمي — يمنع الانفلات الدلالي
   lambda_cascade: 3.0       # شدة طبقة الهوي
   gamma: 2.0                # أس اضمحلال المسافة (2.0 ≈ جاذبية)
   delta: 0.3                # ثابت تجنب التفرد
@@ -42,7 +50,7 @@ generation:
   top_k: 500
   beta: 2.0                 # ثابت بولتزمان للتنشيط الطوري
   # seed: 42                # بذرة عشوائية — محذوفة عمداً لتوليد فريد كل مرة
-  relaxation_enabled: false   # تفعيل توليد الاسترخاء الرنيني
+  relaxation_enabled: true    # تفعيل توليد الاسترخاء الرنيني (تحسين متعدد الممرات)
   relaxation_passes: 3       # عدد ممرات الاسترخاء
 
 # ═══ معايرة الرنين — ضبط ذاتي للأوزان ═══
@@ -54,11 +62,11 @@ calibration:
 
 # ═══ تطور المتجهات الطورية — تنظيم ذاتي ═══
 phase_evolution:
-  lr_cooc: 0.01              # معدل تعلم المزامنة الهيبيانية
-  lr_contrast: 0.005         # معدل تعلم التباين
-  lr_spectral: 0.008         # معدل تعلم الإزاحة الطيفية
-  min_cooc: 3                # الحد الأدنى للتشارك
-  max_shift: 0.1             # أقصى إزاحة للمتجه
+  lr_cooc: 0.03              # معدل تعلم المزامنة الهيبيانية (كان 0.01)
+  lr_contrast: 0.015         # معدل تعلم التباين (كان 0.005)
+  lr_spectral: 0.02          # معدل تعلم الإزاحة الطيفية (كان 0.008)
+  min_cooc: 2                # الحد الأدنى للتشارك (كان 3)
+  max_shift: 0.25             # أقصى إزاحة للمتجه (كان 0.1)
 
 # ═══ مشهد القصد — آبار جهد محتمل ═══
 intent_landscape:
@@ -77,93 +85,100 @@ hierarchical_memory:
   paragraph_capacity: 15     # سعة مستوى الفقرة
   conversation_capacity: 5   # سعة مستوى المحادثة
 
-# ═══ أوزان التسجيل — تتحكم في مساهمة كل مكوّن فيزيائي ═══
+# ═══ أوزان التسجيل — فيزيائية بحتة (بدون K-matrix إحصائي) ═══
 # هذه الأوزان الخام (raw weights) تُطبَّع تلقائياً بحيث مجموعها ≈ 0.95
 scoring_weights:
-  # ═══ الأساسيات العشرة (فعالة) ═══
-  align: 3.0                # التوافق الطوري — أساس كل شيء
-  prompt_align: 2.5         # التوافق مع الأمر
-  syntax: 5.0               # النحو — يمنع الركاكة
-  gravity: 2.5              # الجاذبية الدلالية الإقليدية
-  beamform: 3.0             # تشكيل الشعاع الطوري (بديل Self-Attention)
-  refractory: 2.5           # بوابة الجموح (بديل Repetition Penalty)
-  macro_wave: 2.0           # تشابك الموجات الكبرى (بديل الطبقات العميقة)
-  heterodyne: 3.0           # التغاير الترددي — عزل رفقاء السياق
-  carrier: 4.0              # الموجة الحاملة — طيف الرفيقات الكامل لكل كلمة
-  resonant_chain: 4.0       # السلسلة الرنينية LC
-  k_coupling: 3.0           # مصفوفة التلازم K (syn+sem+conc مدمجة)
-  diversity: 1.0            # التنوع — يمنع التكرار
-  repulsion: 0.5            # التنافر — كسر التشابه
-  morpho: 1.5               # الصرف العربي (morpho_trans ضمنياً)
+  # ═══ الأساسيات الفيزيائية — نواة التوليد ═══
+  align: 5.0                # التوافق الطوري — أساس كل شيء (cosine similarity في فضاء 56D)
+  gravity: 5.0              # الجاذبية الدلالية F=G·m₁·m₂/r² — تجاذب الكتل في فضاء الطور
+  resonant_chain: 5.0       # السلسلة الرنينية LC — ترددات الأزواج المتجاورة
+  oscillator: 3.0           # مذبذبات كوراموتو — تزامن الأطوار عبر محاكاة 20 خطوة
+  heterodyne: 4.0           # التغاير الترددي الصافي — f_plus/f_minus بدون K
+  beamform: 3.5             # تشكيل الشعاع الطوري — تركيز الحقل على المرشحين الأقوى
+  mizan_coherence: 3.0      # محرك اتساق الميزان — قوة الفاعل vs مقاومة المفعول
+  dccf: 4.0                 # حقل الاقتران السياقي الديناميكي — coupling + اضمحلال
+  causal_flow_align: 3.0    # محاذاة حقل التدفق السببي — استدلال منطقي مستمر
+  partonic_cross: 2.5       # فصل الأطوار الجسيمي — نواة دلالية vs غلاف طيفي
+  density_resonance: 3.0    # رنين مصفوفة الكثافة الكمومية ρ = Σ pᵢ|ψᵢ⟩⟨ψᵢ|
+  hierarchical_mod: 2.5     # تعديل هرمي موجي AM/FM — 4 مستويات ضغط طيفي
+  prompt_align: 3.0         # التوافق مع الأمر — محاذاة الطور مع prompt
+  constraint_align: 4.0     # قيد Dirichlet — prompt كشروط حدودية
+  kb_knowledge: 2.5         # ذاكرة هولوغرافية معرفية — استرجاع حقائق
+
+  # ═══ نحوية وصرفية ═══
+  syntax: 5.0               # النحو — انتقالات bigram في SyntaxField
+  syntax_gate: 2.5          # بوابة النحو — استقرار الانتقال النحوي
+  syntax_phase: 2.5         # الطور النحوي — SyntaxTransitionField.gate()
+  morpho: 1.5               # الصرف العربي
+  morpho_trans: 1.2         # انتقالات صرفية
+  irab: 1.5                 # الإعراب — توافق حالات الرفع والنصب والجر
+  weight_resonance: 1.5     # رنين الأوزان الصرفية العربية الـ14
+  sentence: 1.0             # بنية الجملة — موقع الكلمة بداية/وسط/نهاية
+  pos_alt: 1.0              # تناوب أقسام الكلام — منع تتابع نفس النوع
+  phil_semantic: 2.0        # الدلالة الفلسفية — أبعاد 42-64
+  root_align: 1.2           # توافق الجذر الثلاثي
+  pragmatic: 1.5            # البراغماتية — إطار القصد + تعارض الطور
+
+  # ═══ تنوع وإيقاع ═══
+  diversity: 1.0            # التنوع — منع التكرار
+  repulsion: 0.8            # التنافر — كسر التشابه مع الكلمات السابقة
+  novelty: 0.5              # الجدّة — مكافأة الكلمات الجديدة
+  spectral: 2.0             # الطيفي — رنين طيفي بين الكلمات
+  thermo: 1.5               # الحراري — بوابة حرارية Boltzmann
+  phase_opposition: 1.5     # التعارض الطوري
+
+  # ═══ حوارية ═══
+  dialogue: 3.0             # الحوار — anti-completion + sentence starter bonus
+  dialogue_gravity: 2.5     # جاذبية الحوار — ذاكرة حوارية مضغوطة طورياً
+  dialogue_spectral: 2.0    # طيف الحوار — رنين سياقي مع تاريخ الحوار
+  intent_align: 3.0         # توافق القصد — محاذاة مع intent vector
+  associative_plan: 3.5     # الخطة الترابطية — associative memory retrieval
+  entity_align: 2.0         # توافق الكيانات
+  plan_fidelity: 4.0        # إخلاص الخطة — ResponsePlanner target
+  architect: 3.0            # بناء معماري للرد — توجيه مراحل الرد
+  trajectory: 1.5           # مسار الطور — معالم التوليد
+  hierarchical: 1.5         # الذاكرة الهرمية — 4 مستويات ضغط السياق
+  intent_landscape: 1.5     # مشهد القصد — آبار جهد محتمل
+  trace: 0.8                # أثر التفاعل — أنماط المستخدم
+
+  # ═══ ذاكرة وسياق ═══
+  ram_plan: 1.5             # ذاكرة الجذب — RAM attractor memory
+  global_resonance: 2.0     # الرنين الشامل — GlobalSpectralMemory
+  contextual_spectra: 5.0   # الأطياف السياقية — حقول دلالية من phase vectors
+  context_wave_filter: 2.0  # مرشح الموجة السياقية — adaptive_context_filter
+  relational: 1.0           # K علاقية — استخراج نسب محددة
+  category: 2.0             # التصنيف الدلالي — فئات الكلمات
+  sentiment: 1.0            # المشاعر
+  anchor_affinity: 2.0      # ألفة المرساة
+  semantic_density: 2.0     # الكثافة الدلالية
+
+  # ═══ إنجليزية ═══
+  eng_morpho: 1.0           # صرف إنجليزي
+  eng_morpho_trans: 0.8     # انتقالات صرفية إنجليزية
+  eng_grammar: 1.0          # نحو إنجليزي
+  eng_agreement: 0.8        # تطابق إنجليزي
+  eng_stem_align: 0.8       # توافق الجذع الإنجليزي
+
+  # ═══ تحسينات متقدمة ═══
+  causal: 2.5               # السببية — CausalPhaseEngine
+  ppm: 2.0                  # تعديل الطور بالأمر PromptField
+  amfs: 1.5                 # التحول التكيفي — Adaptive Mass & Frequency Shift
+  cascade: 0.0              # الهوي التراكمي — مفعّل يدوياً فقط
+  carrier: 3.0              # الموجة الحاملة — طيف الرفيقات
+  macro_wave: 2.0           # تشابك الموجات الكبرى (في creative mode)
+  refractory: 2.5           # بوابة الجموح (في creative mode)
+  resonance_gate: 2.0       # بوابة الرنين — تنشيط انتقائي
+
+  # ═══ K-matrix إحصائي — مُصفّر بالكامل ═══
+  k_coupling: 3.0           # مصفوفة التلازم K
+  syn: 3.0                  # K_syn
+  sem: 3.0                  # K_sem
+  conc: 1.5                 # K_conc
 
   # ═══ معطلة (تُفعّل حسب الحاجة) ═══
-  resonance_gate: 0.0       # بوابة الرنين
   symbolic: 0.0             # القواعد الرمزية
-  morpho_trans: 0.0         # انتقالات صرفية
-  sentence: 0.0             # بنية الجملة
-  pos_alt: 0.0              # تناوب أقسام الكلام
-  irab: 0.0                 # الإعراب
-  syntax_gate: 0.0          # بوابة النحو
-  syntax_phase: 0.0         # الطور النحوي
-  phil_semantic: 0.0        # الدلالة الفلسفية
-  root_align: 0.0           # توافق الجذر
-  ram_plan: 0.0             # ذاكرة الجذب
-  oscillator: 0.0           # مذبذبات كوراموتو (بطيئة)
-  pragmatic: 0.0            # البراغماتية
-  weight_resonance: 0.0     # رنين الأوزان الصرفية
   poetic: 0.0               # الشعرية (فقط في النمط الشعري)
   rhyme: 0.0                # القافية (فقط في النمط الشعري)
-  spectral: 0.0             # الطيفي
-  thermo: 0.0               # الحراري
-  dialogue_gravity: 0.0     # جاذبية الحوار
-  dialogue_spectral: 0.0    # طيف الحوار
-  intent_align: 0.0         # توافق القصد
-  associative_plan: 0.0     # الخطة الترابطية
-  entity_align: 0.0         # توافق الكيانات
-  plan_fidelity: 0.0        # إخلاص الخطة
-  sentiment: 0.0            # المشاعر
-  anchor_affinity: 0.0      # ألفة المرساة
-  semantic_density: 0.0     # الكثافة الدلالية
-  novelty: 0.0              # الجدّة
-  relational_resonance: 0.0 # الرنين العلائقي
-  context_wave_filter: 0.0  # مرشح الموجة السياقية
-  eng_morpho: 0.0           # صرف إنجليزي
-  eng_morpho_trans: 0.0     # انتقالات صرفية إنجليزية
-  eng_grammar: 0.0          # نحو إنجليزي
-  eng_agreement: 0.0        # تطابق إنجليزي
-  eng_stem_align: 0.0       # توافق الجذع الإنجليزي
-  global_resonance: 0.0     # الرنين الشامل
-  phase_opposition: 0.0     # التعارض الطوري
-  syn: 0.0                  # K_syn (مدمج في k_coupling)
-  sem: 0.0                  # K_sem (مدمج في k_coupling)
-  conc: 0.0                 # K_conc (مدمج في k_coupling)
-  causal: 2.00               # السببية (مُفعَّلة V8)
-  dccf: 3.0                 # DCCF — بديل self-attention (مُفعَّل)
-  ppm: 0.0                  # تعديل الطور
-  amfs: 0.0                 # التحول التكيفي
-  cascade: 0.0              # الهوي التراكمي
-  dialogue: 0.0             # الحوار
-  category: 0.0             # التصنيف الدلالي
-  contextual_spectra: 0.0   # الأطياف السياقية
-  trajectory: 0.0           # مسار الطور
-  hierarchical: 0.0         # الذاكرة الهرمية
-  intent_landscape: 0.0     # مشهد القصد
-  trace: 0.0                # أثر التفاعل
-  relational: 0.0           # K علاقية
-  architect: 0.0            # بناء معماري للرد
-  dialogue: 3.00            # الحوار
-  category: 1.50            # التصنيف الدلالي
-  contextual_spectra: 10.00 # الأطياف السياقية
-  trajectory: 1.50           # مسار الطور (معالم التوليد)
-  hierarchical: 1.20         # الذاكرة الهرمية
-  intent_landscape: 1.50     # مشهد القصد
-  trace: 0.50               # أثر التفاعل
-  relational: 1.00           # K علاقية
-  architect: 3.00             # بناء معماري للرد
-  density_resonance: 3.00   # V8: رنين مصفوفة الكثافة الكمومية
-  partonic_cross: 2.00      # V8: فصل الأطوار الجسيمي (cross-coherence)
-  causal_flow_align: 2.50   # V8: محاذاة حقل التدفق السببي
-  hierarchical_mod: 2.00    # V8: تعديل هرمي موجي AM/FM
 
 # ═══ محرك التغاير الترددي (Heterodyne) ═══
 heterodyne:
@@ -195,3 +210,31 @@ density_matrix:
 causal_flow:
   strength: 1.0               # شدة تيار التدفق (γ)
   transitive_depth: 3         # عمق الاستدلال التعددي
+
+# ═══ V8.8: تبريد محاكى (Simulated Annealing) ═══
+annealing:
+  tau_max: 2.5                # حرارة البدء — استكشاف عالٍ في البداية
+  tau_min: 0.15               # حرارة النهاية — تبلور حتمي في النهاية
+  tau_decay: 5.0              # ثابت الاضمحلال — كلما زاد، كان التبريد أبطأ
+
+# ═══ V8.8: حقل قيود Dirichlet — prompt boundary conditions ═══
+prompt_constraint:
+  k_spring: 3.0               # ثابت النابض — قوة الربط بالعقدة المستهدفة
+  damping: 0.15               # تخميد النابض مع البعد
+
+# ═══ V8.8: ذاكرة هولوغرافية معرفية (Holographic KB) ═══
+holographic_kb:
+  enabled: true               # تفعيل الذاكرة الهولوغرافية
+  max_facts: 500              # أقصى عدد حقائق للتخزين
+  curated_path: "data/facts_expanded.json"  # مسار ملف الحقائق المنسقة
+
+# ═══ V8.8: مسبب تكامل مساري (Path Integral Reasoner) ═══
+goal_gravity_weight: 0.3     # وزن جاذبية الهدف (λ) — 0.3 معتدل، 0.5 قوي، 0.1 ضعيف
+
+kb_influence: 0.4            # وزن تأثير القاعدة المعرفية في التوليد العادي (0-1)
+
+reasoning:
+  beam_width: 10              # عرض شعاع الاستدلال
+  max_depth: 8                # أقصى عمق استدلالي
+  min_depth: 2                # أدنى عدد خطوات قبل التحقق من التقارب
+  convergence_threshold: 0.75 # عتبة تشابه الهدف للتقارب

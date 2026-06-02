@@ -49,7 +49,7 @@ class AttractorMemory:
             mask[w] = 1.0
 
         for i in range(len(self.centers)):
-            sim = float(np.mean(np.cos(self.centers[i] - phi_center)))
+            sim = float(np.dot(self.centers[i], phi_center))
             if sim > self.merge_cos:
                 n1 = len(self.word_seqs[i])
                 n2 = len(words)
@@ -168,7 +168,7 @@ class AttractorMemory:
         for w in set(words):
             mask[w] = 1.0
         for i in range(len(self.centers)):
-            sim = float(np.mean(np.cos(self.centers[i] - sentence_pv)))
+            sim = float(np.dot(self.centers[i], sentence_pv))
             if sim > self.merge_cos:
                 self.centers[i] = (self.centers[i] + sentence_pv) / 2.0
                 nrm = np.linalg.norm(self.centers[i])

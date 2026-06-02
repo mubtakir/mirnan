@@ -20,6 +20,24 @@ def _resolve_symbol(word: str) -> str:
     return word
 
 _semantic_embedding = None
+_config = None
+
+def _get_config():
+    global _config
+    if _config is None:
+        import os, yaml
+        project_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        config_path = os.path.join(project_dir, 'config.yaml')
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    _config = yaml.safe_load(f) or {}
+            except Exception:
+                _config = {}
+        else:
+            _config = {}
+    return _config
+
 
 def get_semantic_embedding():
     global _semantic_embedding
@@ -69,7 +87,7 @@ def compute_word_mass(word: str) -> float:
     return compute_word_energy(word) / (LIGHT_SPEED_C ** 2)
 
 
-def compute_word_phase_vector(word: str, widen=1.0, pair_weight=0.0, weighted=False) -> np.ndarray:
+def compute_word_phase_vector(word: str, widen=1.0, pair_weight=0.0, weighted=False, method=None, vowel_modulation=None) -> np.ndarray:
     """حساب المتجه الطوري 22D للكلمة.
 
     Args:
@@ -77,30 +95,40 @@ def compute_word_phase_vector(word: str, widen=1.0, pair_weight=0.0, weighted=Fa
         widen: عامل توسيع التباين (> 1.0 يزيد التباين)
         pair_weight: وزن الأزواج المتجاورة لكسر تناظر التباديل (0.0 = معطل)
         weighted: استخدام الترجيح الموضعي (فاء ×3.5، عين ×2.5، لام ×2.0 ...)
+        method: طريقة التوليف (linear, remnant, projection)
+        vowel_modulation: تفعيل تعديل الحركات بنصف قيمة حرف المد
     """
     word = _resolve_symbol(word)
-    db = get_letter_db()
-    letters = _normalize_letters(word)
-    vectors = [db.get_vector(ch) for ch in letters if db.has(ch)]
-    if not vectors:
-        return np.zeros(PHASE_DIM)
-    n = len(vectors)
-    if n == 1:
-        result = vectors[0].copy()
-    elif weighted and n > 2:
-        weights = np.array([POSITION_WEIGHTS[i] if i < len(POSITION_WEIGHTS) else POSITION_WEIGHTS[-1]
-                           for i in range(n)])
-        vecs = np.array(vectors)
-        result = np.sum(vecs * weights[:, np.newaxis], axis=0) / np.sum(weights)
-    else:
-        result = np.mean(vectors, axis=0)
+    cfg = _get_config().get('semantic_fusion', {})
+    
+    if method is None:
+        method = cfg.get('method', 'linear')
+    if vowel_modulation is None:
+        vowel_modulation = cfg.get('vowel_modulation', True)
 
-    if pair_weight > 0 and n > 1:
-        pair_sum = np.zeros(PHASE_DIM)
-        for i in range(n - 1):
-            pair_sum += vectors[i] * vectors[i + 1]
-        pair_sum /= (n - 1)
-        result = result + pair_weight * pair_sum
+    if method in ("remnant", "projection"):
+        from src.physics.semantic_arithmetic import compute_compound_word_vector
+        result = compute_compound_word_vector(word, method=method)
+        if widen > 1.0:
+            result = np.sign(result) * np.abs(result) ** widen
+        return result
+
+    db = get_letter_db()
+    if vowel_modulation:
+        from src.physics.semantic_arithmetic import _get_modulated_letter_vectors
+        vectors = _get_modulated_letter_vectors(word, db)
+    else:
+        letters = _normalize_letters(word)
+        vectors = [db.get_vector(ch) for ch in letters]
+
+    if not vectors:
+        return np.zeros(PHASE_DIM, dtype=np.float32)
+
+    shifted_vectors = []
+    for i, v in enumerate(vectors):
+        shifted_vectors.append(np.roll(v, i))
+
+    result = np.sum(shifted_vectors, axis=0).astype(np.float32)
 
     nrm = np.linalg.norm(result)
     if nrm > 1e-10:
@@ -140,7 +168,7 @@ def get_pragmatic_projection_matrix():
     if _pragmatic_projection_matrix is None:
         from src.physics.constants import PRAGMATIC_DIMS
         db = get_letter_db()
-        vectors = [db.get_vector(ch) for ch in db.data if np.linalg.norm(db.get_vector(ch)) > 1e-10]
+        vectors = [db.get_vector(ch)[:22] for ch in db.data if np.linalg.norm(db.get_vector(ch)) > 1e-10]
         if len(vectors) >= PRAGMATIC_DIMS:
             matrix = np.column_stack(vectors)
             U, S, Vt = np.linalg.svd(matrix, full_matrices=False)
@@ -256,9 +284,9 @@ def _compute_root_dims(word: str) -> np.ndarray:
         else:
             vecs.append(np.zeros(2))
     # إعادة تشكيل: كل حرف جذر → 2D
-    flat = np.concatenate(vecs)
+    flat = np.concatenate(vecs).astype(np.float32)
     if len(flat) < ROOT_DIMS:
-        flat = np.concatenate([flat, np.zeros(ROOT_DIMS - len(flat))])
+        flat = np.concatenate([flat, np.zeros(ROOT_DIMS - len(flat), dtype=np.float32)])
     else:
         flat = flat[:ROOT_DIMS]
     nrm = np.linalg.norm(flat)

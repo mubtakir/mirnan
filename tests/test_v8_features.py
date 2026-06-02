@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import numpy as np
+from src.physics.constants import TOTAL_DIM
 from src.physics.density_matrix import QuantumDensityMatrix
 from src.physics.causal_flow import CausalFlowField
 from src.physics.synchronize import synchronize
@@ -92,8 +93,8 @@ class TestV8Features:
         assert isinstance(gen.causal_flow, CausalFlowField)
         
         # Test partonic resonance helper
-        w_pv = np.random.randn(64)
-        ctx_pvs = [np.random.randn(64) for _ in range(3)]
+        w_pv = np.random.randn(TOTAL_DIM)
+        ctx_pvs = [np.random.randn(TOTAL_DIM) for _ in range(3)]
         partonic = gen._partonic_resonance(w_pv, ctx_pvs)
         assert 'core_sim' in partonic
         assert 'sem_sim' in partonic

@@ -184,6 +184,19 @@ class GlobalSpectralMemory:
         if os.path.exists(ground_file):
             self.ground_state = np.load(ground_file)
             
+        if self.gss_cache:
+            for key, arr in list(self.gss_cache.items()):
+                if arr.shape[0] < TOTAL_DIM:
+                    self.gss_cache[key] = np.pad(arr, (0, TOTAL_DIM - arr.shape[0]))
+                elif arr.shape[0] > TOTAL_DIM:
+                    self.gss_cache[key] = arr[:TOTAL_DIM]
+                    
+        if self.ground_state is not None:
+            if self.ground_state.shape[0] < TOTAL_DIM:
+                self.ground_state = np.pad(self.ground_state, (0, TOTAL_DIM - self.ground_state.shape[0]))
+            elif self.ground_state.shape[0] > TOTAL_DIM:
+                self.ground_state = self.ground_state[:TOTAL_DIM]
+            
         self.is_loaded = bool(self.gss_cache)
         return self.is_loaded
 

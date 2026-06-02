@@ -16,7 +16,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const cascadeStrengthSlider = document.getElementById('cascade-strength-slider');
     const cascadeStrengthValue = document.getElementById('cascade-strength-value');
     const dialogueToggle = document.getElementById('dialogue-toggle');
-    const weightedToggle = document.getElementById('weighted-toggle');
+    const relaxationToggle = document.getElementById('relaxation-toggle');
+    const physTraceContainer = document.getElementById('phys-trace-container');
+    const traceSteps = document.getElementById('trace-steps');
+    const traceSummary = document.getElementById('trace-summary');
 
     // New split workspace element handles
     const fieldResultsContainer = document.getElementById('field-results-container');
@@ -83,29 +86,24 @@ document.addEventListener('DOMContentLoaded', () => {
     // Handle Generation mode dynamic layout updates
     modeSelect.addEventListener('change', () => {
         poeticOptions.style.display = modeSelect.value === 'poetic' ? 'flex' : 'none';
-        
+        const isChat = !['attract', 'synthesize', 'physics'].includes(modeSelect.value);
+        chatContainer.style.display = isChat ? 'flex' : 'none';
+        fieldResultsContainer.style.display = modeSelect.value === 'attract' ? 'flex' : 'none';
+        sioResultsContainer.style.display = modeSelect.value === 'synthesize' ? 'flex' : 'none';
+        physTraceContainer.style.display = modeSelect.value === 'physics' ? 'block' : 'none';
+        calibrationSidebar.style.display = modeSelect.value === 'attract' ? 'flex' : 'none';
+
         if (modeSelect.value === 'attract') {
             promptInput.placeholder = "أدخل كلمة أو حرفاً لفحص حقل الجذب والتنافر الفيزيائي...";
-            chatContainer.style.display = 'none';
-            fieldResultsContainer.style.display = 'flex';
-            sioResultsContainer.style.display = 'none';
-            calibrationSidebar.style.display = 'flex';
-            
-            // Load initialization data
             loadLetters();
             loadBenchmarkVocab();
         } else if (modeSelect.value === 'synthesize') {
             promptInput.placeholder = "اكتب هدف المشروع... مثال: ابنِ لي API لإدارة المهام مع واجهة ويب";
-            chatContainer.style.display = 'none';
-            fieldResultsContainer.style.display = 'none';
-            sioResultsContainer.style.display = 'flex';
-            calibrationSidebar.style.display = 'none';
             document.getElementById('sio-status').textContent = 'جاهز';
+        } else if (modeSelect.value === 'physics') {
+            promptInput.placeholder = "أدخل نصاً لتتبع فيزياء التوليد...";
         } else {
             promptInput.placeholder = "اكتب رسالتك هنا...";
-            chatContainer.style.display = 'flex';
-            fieldResultsContainer.style.display = 'none';
-            calibrationSidebar.style.display = 'none';
         }
     });
 
@@ -523,6 +521,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (report.mode) {
             addStat('fa-microchip', report.mode);
         }
+        if (report.phase_coherence !== undefined) {
+            addStat('fa-rotate', `Φ=${report.phase_coherence.toFixed(3)}`);
+        }
+        if (report.temperature !== undefined && report.temperature > 0) {
+            addStat('fa-temperature-half', `T=${report.temperature.toFixed(2)}`);
+        }
+        if (report.S_crit !== undefined) {
+            addStat('fa-gauge-high', `S_crit=${report.S_crit}`);
+        }
         if (report.heterodyne_active !== undefined && report.heterodyne_active > 0) {
             addStat('fa-tower-broadcast', `HET=${report.heterodyne_active.toFixed(3)}`);
         }
@@ -576,6 +583,8 @@ document.addEventListener('DOMContentLoaded', () => {
             reportDiv.appendChild(radarDiv);
         }
 
+        addV8Pillars(report, reportDiv);
+
         msgDiv.insertAdjacentElement('afterend', reportDiv);
         chatContainer.scrollTop = chatContainer.scrollHeight;
     }
@@ -617,6 +626,102 @@ document.addEventListener('DOMContentLoaded', () => {
             ` | مراقب: ${data.monitor.corrections_applied} تصحيحات`;
     }
 
+    // V8 Pillars display
+    function addV8Pillars(report, reportDiv) {
+        const pilDiv = document.createElement('div');
+        pilDiv.className = 'v8-pillars';
+        const pillars = [
+            {key: 'dm_coherence', label: 'DM', desc: 'كثافة كمومية'},
+            {key: 'pps_cross', label: 'PPS', desc: 'فصل جسيمي'},
+            {key: 'cff_score', label: 'CFF', desc: 'تدفق سببي'},
+            {key: 'hwm_level', label: 'HWM', desc: 'تعديل هرمي'},
+        ];
+        pillars.forEach(p => {
+            const s = document.createElement('span');
+            const val = report[p.key] || report[p.key.toLowerCase()] || 0;
+            const color = val > 0.3 ? '#10b981' : val > 0.1 ? '#f59e0b' : '#6b7280';
+            s.className = 'v8-pillar';
+            s.innerHTML = `<strong style="color:${color}">${p.label}</strong><small>${p.desc}</small>`;
+            s.title = `${p.desc}: ${val}`;
+            pilDiv.appendChild(s);
+        });
+        reportDiv.appendChild(pilDiv);
+    }
+
+    // Entropy chart drawing
+    function drawEntropyChart(canvasId, data) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas || !data.length) return;
+        const ctx = canvas.getContext('2d');
+        const W = canvas.width, H = canvas.height;
+        ctx.clearRect(0, 0, W, H);
+        ctx.strokeStyle = '#8b5cf6';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        const pad = 10, w = W - 2 * pad, h = H - 2 * pad;
+        for (let i = 0; i < data.length; i++) {
+            const x = pad + (i / Math.max(data.length - 1, 1)) * w;
+            const y = pad + (1 - data[i]) * h;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(139, 92, 246, 0.15)';
+        ctx.lineTo(pad + w, pad + h);
+        ctx.lineTo(pad, pad + h);
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    function renderPhysicsTrace(prompt, data) {
+        const report = data.physics_report || {};
+        traceSummary.innerHTML = `
+            <div class="trace-summary-row">
+                <span><strong>المدخل:</strong> ${prompt}</span>
+                <span><strong>المخرج:</strong> ${data.result || '—'}</span>
+                <span><strong>الزمن:</strong> ${data.time_taken ? data.time_taken.toFixed(3) + 's' : '—'}</span>
+                <span><strong>الإنتروبيا:</strong> ${report.entropy || '—'}</span>
+                <span><strong>β:</strong> ${report.beta || '—'}</span>
+                <span><strong>الكلمات:</strong> ${report.word_count || '—'}</span>
+            </div>`;
+
+        traceSteps.innerHTML = '';
+        if (report.word_masses) {
+            const words = Object.entries(report.word_masses);
+            words.forEach(([w, mass], i) => {
+                const angle = report.phase_angles ? report.phase_angles[i] : '—';
+                const align = report.alignments ? report.alignments[i] : '—';
+                const step = document.createElement('div');
+                step.className = 'trace-step';
+                step.innerHTML = `
+                    <div class="trace-step-num">${i + 1}</div>
+                    <div class="trace-step-word">${w}</div>
+                    <div class="trace-step-metrics">
+                        <span title="الكتلة">⚖️ ${Number(mass).toFixed(3)}</span>
+                        <span title="زاوية الطور">∠ ${angle}</span>
+                        <span title="المحاذاة">${align}</span>
+                    </div>`;
+                traceSteps.appendChild(step);
+            });
+        }
+
+        if (report.top_k && report.top_k.length) {
+            const topDiv = document.createElement('div');
+            topDiv.className = 'trace-topk';
+            topDiv.innerHTML = '<strong>أعلى المرشحين:</strong> ' + report.top_k.join(' · ');
+            traceSteps.appendChild(topDiv);
+        }
+
+        // Draw charts
+        const entropyData = report.entropy_history || [report.entropy || 0.5];
+        drawEntropyChart('entropy-chart', Array.isArray(entropyData) ? entropyData : [entropyData]);
+        drawEntropyChart('coherence-chart', [report.phase_coherence || report.dccf_coupling || 0.5, 0.6, 0.55]);
+
+        // V8 pillars
+        const chartDiv = document.querySelector('.trace-charts');
+        if (chartDiv) addV8Pillars(report, chartDiv);
+    }
+
     // Chat submit handler
     chatForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -647,7 +752,33 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('sio-phases').innerHTML = '';
             document.getElementById('sio-deliverable').innerHTML = '';
             
+        // Physics trace mode
+        if (mode === 'physics') {
+            promptInput.disabled = true;
+            sendBtn.disabled = true;
+            typingIndicator.style.display = 'flex';
             try {
+                const resp = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({...body, mode: 'standard', max_words: body.max_words}),
+                });
+                const data = await resp.json();
+                typingIndicator.style.display = 'none';
+                renderPhysicsTrace(prompt, data);
+            } catch (e) {
+                typingIndicator.style.display = 'none';
+                addMessage('خطأ: ' + e.message, 'system');
+            } finally {
+                promptInput.disabled = false;
+                sendBtn.disabled = false;
+                promptInput.focus();
+                promptInput.value = '';
+            }
+            return;
+        }
+
+        try {
                 const response = await fetch('/api/synthesize', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -694,7 +825,6 @@ document.addEventListener('DOMContentLoaded', () => {
             cascade: cascadeToggle.checked,
             cascade_strength: cascadeToggle.checked ? parseFloat(cascadeStrengthSlider.value) : null,
             dialogue: dialogueToggle.checked,
-            weighted: weightedToggle.checked,
         };
 
         if (mode === 'poetic') {

@@ -24,7 +24,7 @@
 import numpy as np
 import logging
 from src.physics.word_physics import phase_similarity
-from src.physics.constants import TOTAL_DIM
+from src.physics.constants import TOTAL_DIM, PHASE_DIM
 
 logger = logging.getLogger(__name__)
 
@@ -216,7 +216,7 @@ class TrajectoryPlanner:
         if milestone.target_pv is None or np.linalg.norm(milestone.target_pv) < 1e-10:
             return 0.0
 
-        align = phase_similarity(word_pv[:22], milestone.target_pv[:22])
+        align = phase_similarity(word_pv[:PHASE_DIM], milestone.target_pv[:PHASE_DIM])
         score = align * milestone.tightness
 
         return score

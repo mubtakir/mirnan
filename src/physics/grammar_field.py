@@ -24,6 +24,11 @@ def _word_category(word):
 
 
 class SyntaxField:
+    """SyntaxField يعمل على مستوى bigram / تلازم كلمتين — يعتمد على أطوار الكلمات الكاملة (22D).
+    
+    هذا يختلف عن syntax_field.py الذي يعمل على مراسي نحوية 6D (فعل، اسم، حرف...).
+    يُستعمل SyntaxField هذا في synchronize و model_io و model_bundle.
+    """
     def __init__(self, dim=PHASE_DIM):
         self.dim = dim
         self.bigram_cos = {}

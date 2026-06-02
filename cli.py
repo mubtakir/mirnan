@@ -27,8 +27,20 @@ def load_generator():
     data = model.load_model()
     # تحميل الأطياف السياقية (اختبار تجريبي)
     model_dir_path = os.path.dirname(model.__file__)
-    spectra = np.load(os.path.join(model_dir_path, 'contextual_spectra.npy')) if os.path.exists(os.path.join(model_dir_path, 'contextual_spectra.npy')) else None
-    dial_spectra = np.load(os.path.join(model_dir_path, 'dialogue_spectra.npy')) if os.path.exists(os.path.join(model_dir_path, 'dialogue_spectra.npy')) else None
+    spectra = None
+    dial_spectra = None
+    try:
+        sp = os.path.join(model_dir_path, 'contextual_spectra.npy')
+        if os.path.exists(sp):
+            spectra = np.load(sp)
+    except Exception:
+        pass
+    try:
+        dsp = os.path.join(model_dir_path, 'dialogue_spectra.npy')
+        if os.path.exists(dsp):
+            dial_spectra = np.load(dsp)
+    except Exception:
+        pass
     gen = Generator(
         data['vocab'], data['K_sem'],
         syntax_field=data['syntax'],
@@ -149,7 +161,7 @@ def main():
     parser = argparse.ArgumentParser(description="مرنان — مولد نصوص فيزيائي")
     parser.add_argument('prompt', nargs='*', help="النص المدخل")
     parser.add_argument('--mode', default='auto',
-                        choices=['auto', 'standard', 'quantum', 'multiverse', 'wave', 'poetic', 'creative', 'dialogue', 'attract', 'field'])
+                        choices=['auto', 'standard', 'quantum', 'multiverse', 'wave', 'poetic', 'creative', 'dialogue', 'code', 'math', 'attract', 'field'])
     parser.add_argument('--beta', type=float, default=None)
     parser.add_argument('--k_B', type=float, default=None)
     parser.add_argument('--meter', default=None, help="البحر الشعري")

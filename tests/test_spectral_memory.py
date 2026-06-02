@@ -1,6 +1,7 @@
 import numpy as np
 from src.physics.spectral_memory import GlobalSpectralMemory, build_contexts_map
 from src.physics.synchronize import Vocabulary
+from src.physics.constants import TOTAL_DIM
 
 
 def _make_vocab():
@@ -16,7 +17,7 @@ def test_build_contexts_map_shape():
     assert len(cm) > 0
     for wid, vecs in cm.items():
         assert len(vecs) >= 1
-        assert vecs[0].shape[0] == 64
+        assert vecs[0].shape[0] == TOTAL_DIM
 
 
 def test_global_signatures_empty():
@@ -28,15 +29,15 @@ def test_global_signatures_empty():
 
 def test_global_resonance_zero_for_unknown():
     gsm = GlobalSpectralMemory(data_dir='data')
-    gsm.gss_cache = {1: np.ones(64)}
+    gsm.gss_cache = {1: np.ones(TOTAL_DIM)}
     gsm.is_loaded = True
-    res = gsm.get_global_resonance(999, np.ones(64))
+    res = gsm.get_global_resonance(999, np.ones(TOTAL_DIM))
     assert res == 0.0
 
 
 def test_global_resonance_same_vector():
     gsm = GlobalSpectralMemory(data_dir='data')
-    vec = np.ones(64) / np.linalg.norm(np.ones(64))
+    vec = np.ones(TOTAL_DIM) / np.linalg.norm(np.ones(TOTAL_DIM))
     gsm.gss_cache = {1: vec}
     gsm.is_loaded = True
     res = gsm.get_global_resonance(1, vec)
@@ -47,8 +48,8 @@ def test_phase_opposition_contradiction():
     from src.physics.pragmatic_field import PragmaticBindingEngine
     eng = PragmaticBindingEngine()
     # diff ≈ π/2 → |cos| ≈ 0 → contradiction score -1.0
-    w_pv = np.zeros(64)
-    ctx_pvs = [np.ones(64) * (np.pi / 2)]
+    w_pv = np.zeros(TOTAL_DIM)
+    ctx_pvs = [np.ones(TOTAL_DIM) * (np.pi / 2)]
     score = eng.phase_opposition_score(w_pv, ctx_pvs)
     assert score == -1.0
 
@@ -56,8 +57,8 @@ def test_phase_opposition_contradiction():
 def test_phase_opposition_alignment():
     from src.physics.pragmatic_field import PragmaticBindingEngine
     eng = PragmaticBindingEngine()
-    w_pv = np.ones(64)
-    ctx_pvs = [np.ones(64)]
+    w_pv = np.ones(TOTAL_DIM)
+    ctx_pvs = [np.ones(TOTAL_DIM)]
     score = eng.phase_opposition_score(w_pv, ctx_pvs)
     assert score == 0.5
 
@@ -66,8 +67,8 @@ def test_phase_opposition_neutral():
     from src.physics.pragmatic_field import PragmaticBindingEngine
     eng = PragmaticBindingEngine()
     # diff ≈ 1.0 → |cos| ≈ 0.54 → between 0.15 and 0.7 → neutral (0.0)
-    w_pv = np.zeros(64)
-    ctx_pvs = [np.ones(64) * 1.0]
+    w_pv = np.zeros(TOTAL_DIM)
+    ctx_pvs = [np.ones(TOTAL_DIM) * 1.0]
     score = eng.phase_opposition_score(w_pv, ctx_pvs)
     assert score == 0.0
 
@@ -149,7 +150,7 @@ def test_resonant_chain_pair_freq():
     from src.physics.resonant_chain import ResonantChain
     import numpy as np
     rc = ResonantChain()
-    pv_a = np.ones(64) / np.linalg.norm(np.ones(64))
+    pv_a = np.ones(TOTAL_DIM) / np.linalg.norm(np.ones(TOTAL_DIM))
     pv_b = pv_a.copy()
     f = rc.pair_freq(1.0, 1.0, pv_a, pv_b)
     assert f > 0
@@ -159,7 +160,7 @@ def test_resonant_chain_coherence():
     from src.physics.resonant_chain import ResonantChain
     import numpy as np
     rc = ResonantChain()
-    v = np.ones(64) / np.linalg.norm(np.ones(64))
+    v = np.ones(TOTAL_DIM) / np.linalg.norm(np.ones(TOTAL_DIM))
     masses = [1.0, 1.0, 1.0]
     pvs = [v, v, v]
     c = rc.sentence_coherence(masses, pvs)
@@ -170,7 +171,7 @@ def test_resonant_chain_score_candidate():
     from src.physics.resonant_chain import ResonantChain
     import numpy as np
     rc = ResonantChain()
-    v = np.ones(64) / np.linalg.norm(np.ones(64))
+    v = np.ones(TOTAL_DIM) / np.linalg.norm(np.ones(TOTAL_DIM))
     prev_freqs = [0.5, 0.52, 0.49]
     score = rc.score_candidate(1.0, 1.0, v, v, prev_freqs)
     assert score > 0
@@ -180,7 +181,7 @@ def test_resonant_chain_bad_pair():
     from src.physics.resonant_chain import ResonantChain
     import numpy as np
     rc = ResonantChain()
-    v1 = np.ones(64) / np.linalg.norm(np.ones(64))
+    v1 = np.ones(TOTAL_DIM) / np.linalg.norm(np.ones(TOTAL_DIM))
     v2 = -v1.copy()
     f = rc.pair_freq(1.0, 999.0, v1, v2)
     assert f > 0

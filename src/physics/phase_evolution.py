@@ -28,13 +28,13 @@ class PhaseEvolution:
     """محرك التطور الطوري — تنظيم ذاتي للمتجهات."""
 
     def __init__(self, config=None):
-        cfg = config or {}
-        self.lr_cooc = cfg.get('phase_lr_cooc', 0.01)
-        self.lr_contrast = cfg.get('phase_lr_contrast', 0.005)
-        self.lr_spectral = cfg.get('phase_lr_spectral', 0.008)
-        self.min_cooc = cfg.get('phase_min_cooc', 3)
-        self.max_shift = cfg.get('phase_max_shift', 0.1)
-        self.decay = cfg.get('phase_shift_decay', 0.99)
+        cfg = (config or {}).get('phase_evolution', {})
+        self.lr_cooc = cfg.get('lr_cooc', 0.03)
+        self.lr_contrast = cfg.get('lr_contrast', 0.015)
+        self.lr_spectral = cfg.get('lr_spectral', 0.02)
+        self.min_cooc = cfg.get('min_cooc', 2)
+        self.max_shift = cfg.get('max_shift', 0.25)
+        self.decay = cfg.get('shift_decay', 0.99)
         self.shifts = {}
         self.cooc_counts = {}
         self.epoch = 0

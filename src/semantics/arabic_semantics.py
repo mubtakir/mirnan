@@ -483,7 +483,7 @@ class ArabicRootExtractor:
                     self.word_to_root_cache[deriv] = root_key
 
         except Exception as e:
-            pass
+            import logging; logging.getLogger('arabic_semantics').debug(f'_build_root_cache: {e}')
 
     def extract(self, word: str) -> Tuple[str, float]:
         if word in self.word_to_root_cache:
@@ -520,8 +520,8 @@ class ArabicRootExtractor:
             row = self.arramooz_cursor.fetchone()
             if row and row[0]:
                 return row[0]
-        except Exception:
-            pass
+        except Exception as e:
+            import logging; logging.getLogger('arabic_semantics').debug(f'lookup_arramooz: {e}')
         return None
 
     def _clean_word(self, word: str) -> str:

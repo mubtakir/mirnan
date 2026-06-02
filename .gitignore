@@ -48,3 +48,9 @@ tests_stderr.log
 test_output_hard.txt
 extracted_generator.py
 debug_entropy.txt
+
+# استثناء مجلد النماذج وملفات التخزين المؤقت الكبيرة مؤقتاً لتجنب مشاكل الرفع
+# (Temporarily exclude models folder and large cache files to prevent upload issues)
+assistant/models/
+**/models/
+model/_all_pv_cache.npy

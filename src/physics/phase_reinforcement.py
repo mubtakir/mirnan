@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class PhaseReinforcement:
     """تعزيز طوري — ذاكرة تعلّم فيزيائية."""
 
-    def __init__(self, learning_rate=0.05, decay=0.01, max_traces=200):
+    def __init__(self, learning_rate=0.15, decay=0.005, max_traces=200):
         self.lr = learning_rate
         self.decay = decay
         self.max_traces = max_traces
@@ -71,7 +71,7 @@ class PhaseReinforcement:
         strength = self._trace_strengths[word]
         if strength < 0.01:
             return pv
-        alpha = strength * 0.3
+        alpha = strength * 0.5
         return (1.0 - alpha) * pv + alpha * self._traces[word]
 
     def get_strength(self, word):

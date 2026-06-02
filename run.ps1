@@ -1,19 +1,41 @@
-# MIRAN V3.0 Launcher
-Write-Host "`n╔════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║     MIRAN V3.0 - PSRA         ║" -ForegroundColor Cyan
-Write-Host "║  Phase-Symbolic Resonance     ║" -ForegroundColor Cyan
-Write-Host "╚════════════════════════════════╝" -ForegroundColor Cyan
-Write-Host "`n  [1] CLI - Terminal Interface" -ForegroundColor Green
-Write-Host "  [2] Web - Browser (http://127.0.0.1:5000)" -ForegroundColor Green
-Write-Host "  [3] Run Tests (pytest)" -ForegroundColor Green
-Write-Host "  [4] Exit`n" -ForegroundColor Green
+# MIRAN V8 Launcher
+Write-Host "`n========================================" -ForegroundColor Cyan
+Write-Host "  mirnan V8 - Partonic Resonance" -ForegroundColor Cyan
+Write-Host "========================================`n" -ForegroundColor Cyan
+Write-Host "  [1] CLI - Interactive Terminal" -ForegroundColor Green
+Write-Host "  [2] Web UI - http://127.0.0.1:8000" -ForegroundColor Green
+Write-Host "  [3] Physics Demo" -ForegroundColor Green
+Write-Host "  [4] Physics Trace" -ForegroundColor Green
+Write-Host "  [5] Physics Validation" -ForegroundColor Green
+Write-Host "  [6] Run Tests" -ForegroundColor Green
+Write-Host "  [7] Exit`n" -ForegroundColor Green
 
-$choice = Read-Host "Select (1-4)"
-$env:PYTHONPATH = "$PSScriptRoot"
+$choice = Read-Host "Select (1-7)"
+$env:PYTHONPATH = $PSScriptRoot
 $env:PYTHONIOENCODING = "utf-8"
 
-switch ($choice) {
-    "1" { python "$PSScriptRoot\demo_v3.py"; Read-Host "`nPress Enter to exit" }
-    "2" { Write-Host "`nStarting web server at http://127.0.0.1:5000" -ForegroundColor Yellow; python "$PSScriptRoot\web_app.py"; Read-Host "`nPress Enter to exit" }
-    "3" { pytest "$PSScriptRoot\tests" -v; Read-Host "`nPress Enter to exit" }
+if ($choice -eq "1") {
+    python "$PSScriptRoot\cli.py" -i
+    Read-Host "Press Enter to exit"
+}
+elseif ($choice -eq "2") {
+    Write-Host "Starting server at http://127.0.0.1:8000" -ForegroundColor Yellow
+    python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000
+}
+elseif ($choice -eq "3") {
+    python "$PSScriptRoot\physics_demo.py" --full --prompt "العلم نور" --max-words 8
+    Read-Host "Press Enter to exit"
+}
+elseif ($choice -eq "4") {
+    $p = Read-Host "Enter prompt"
+    python "$PSScriptRoot\physics_demo.py" --prompt $p --json
+    Read-Host "Press Enter to exit"
+}
+elseif ($choice -eq "5") {
+    python "$PSScriptRoot\physics_demo.py" --validate --compare
+    Read-Host "Press Enter to exit"
+}
+elseif ($choice -eq "6") {
+    python -m pytest tests/ -v
+    Read-Host "Press Enter to exit"
 }

@@ -286,7 +286,7 @@ class HierarchicalMemory:
             context_pv = level_obj.get_context_pv()
             if np.linalg.norm(context_pv) > 1e-10 and np.linalg.norm(word_pv) > 1e-10:
                 from src.physics.word_physics import phase_similarity
-                sim = phase_similarity(word_pv[:22], context_pv[:22])
+                sim = phase_similarity(word_pv[:PHASE_DIM], context_pv[:PHASE_DIM])
                 result[name] = float(sim)
             else:
                 result[name] = 0.0

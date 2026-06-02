@@ -118,8 +118,8 @@ def rule_filament_resonance(word, prev_words, context_ids, vocab, K, _pv_cache=N
             return 0.12
         if avg_cat > 0.75:
             return 0.05
-    except Exception:
-        pass
+    except Exception as e:
+        import logging; logging.getLogger('symbolic_bridge').debug(f'rule_preposition_resonance: {e}')
     return 0.0
 
 @_register
@@ -143,8 +143,8 @@ def rule_gravitational_pull(word, prev_words, context_ids, vocab, K, _pv_cache=N
                 return min(mass * 0.15, 0.12)
             if word.endswith('ة') and len(word) >= 4:
                 return -0.06
-    except Exception:
-        pass
+    except Exception as e:
+        import logging; logging.getLogger('symbolic_bridge').debug(f'rule_gravitational_pull: {e}')
     return 0.0
 
 @_register

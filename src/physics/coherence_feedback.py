@@ -14,7 +14,7 @@
 import numpy as np
 import logging
 from src.physics.word_physics import phase_similarity
-from src.physics.constants import TOTAL_DIM
+from src.physics.constants import TOTAL_DIM, PHASE_DIM
 
 logger = logging.getLogger(__name__)
 
@@ -47,8 +47,8 @@ class CoherenceFeedback:
             if wid_prev is not None and wid_curr is not None:
                 if wid_prev < len(all_pv) and wid_curr < len(all_pv):
                     sim = phase_similarity(
-                        all_pv[wid_prev][:22],
-                        all_pv[wid_curr][:22]
+                        all_pv[wid_prev][:PHASE_DIM],
+                        all_pv[wid_curr][:PHASE_DIM]
                     )
                     similarities.append(sim)
 
@@ -72,13 +72,13 @@ class CoherenceFeedback:
         if len(pvs) < 2:
             return 0.5
 
-        pv_matrix = np.array([p[:22] for p in pvs])
+        pv_matrix = np.array([p[:PHASE_DIM] for p in pvs])
         mean_pv = np.mean(pv_matrix, axis=0)
         mean_norm = np.linalg.norm(mean_pv)
         if mean_norm < 1e-10:
             return 0.5
 
-        alignments = [phase_similarity(p[:22], mean_pv) for p in pvs]
+        alignments = [phase_similarity(p[:PHASE_DIM], mean_pv) for p in pvs]
         coherence = float(np.mean(alignments))
         return coherence
 
@@ -280,11 +280,11 @@ class CoherenceFeedback:
                 continue
 
             sim_prev = phase_similarity(
-                generator._all_pv[wid_prev][:22],
-                generator._all_pv[wid_curr][:22])
+                generator._all_pv[wid_prev][:PHASE_DIM],
+                generator._all_pv[wid_curr][:PHASE_DIM])
             sim_next = phase_similarity(
-                generator._all_pv[wid_curr][:22],
-                generator._all_pv[wid_next][:22])
+                generator._all_pv[wid_curr][:PHASE_DIM],
+                generator._all_pv[wid_next][:PHASE_DIM])
 
             avg_surround = (sim_prev + sim_next) / 2.0
             if avg_surround < 0.15:

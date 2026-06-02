@@ -98,8 +98,9 @@ def strip_urls(text: str) -> str:
     return _RE_URL.sub('', text)
 
 
-def normalize_arabic(text: str) -> str:
-    text = _RE_TASHKEEL.sub('', text)
+def normalize_arabic(text: str, keep_tashkeel: bool = False) -> str:
+    if not keep_tashkeel:
+        text = _RE_TASHKEEL.sub('', text)
     text = _RE_KASHIDA.sub('', text)
     text = text.translate(_ARABIC_NORMALIZE)
     text = _RE_LONG_TATWEEL.sub(r'\1', text)
@@ -132,7 +133,8 @@ def split_sentences(text: str) -> List[str]:
 
 def clean_corpus(text: str, keep_english: bool = True,
                  max_line_len: int = 500,
-                 min_line_len: int = 2) -> str:
+                 min_line_len: int = 2,
+                 keep_tashkeel: bool = True) -> str:
     """تنظيف متكامل لنص أولي إلى كوربوس مرنان."""
     original_len = len(text)
     stats = {'bytes_in': original_len}
@@ -148,7 +150,7 @@ def clean_corpus(text: str, keep_english: bool = True,
     stats['after_urls'] = len(text)
 
     # تطبيع العربية
-    text = normalize_arabic(text)
+    text = normalize_arabic(text, keep_tashkeel=keep_tashkeel)
     stats['after_norm'] = len(text)
 
     # إزالة أحرف خاصة

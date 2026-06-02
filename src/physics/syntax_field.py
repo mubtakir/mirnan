@@ -8,13 +8,13 @@ import numpy as np
 from src.physics.constants import SYNTAX_DIMS
 from src.grammar.irab_engine import IrabEngine
 from src.grammar.arabic_grammar import ArabicGrammar
-from src.grammar.particles import JAR_PREPS, CONJUNCTIONS
+from src.grammar.particles import JAR_PREPS, CONJUNCTIONS, NASB_NOUNS, NEGATIONS
+from src.grammar.irab_engine import IrabEngine
+from src.grammar.arabic_grammar import ArabicGrammar
 from src.semantics.arabic_morphology_analyzer import analyze_word
 
 KANA_VERBS = {"كان", "كانت", "ليس", "ليست", "أصبح", "صار", "ما زال", "يكون", "تكون", "أمسى", "بات", "ليسوا"}
-NASB_NOUNS = set(IrabEngine.NASB_NOUNS)
 JZM_PARTICLES = set(IrabEngine.JZM_VERB_PARTICLES)
-NEGATIONS = {"لا", "لم", "لن", "ما", "لات", "لن", "لما"}
 VERB_PREFIXES = set('أنيت')
 
 SYNTAX_ANCHORS = {

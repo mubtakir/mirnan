@@ -89,7 +89,7 @@ if __name__ == "__main__":
     def scorer(context, top_k=50):
         words = context.split()
         all_pv = [gen._get_pv_fast(w) for w in words]
-        context_ids = [vocab.word2id[w] for w in words if w in vocab.word2id]
+        context_ids = [vocab.word2id.get(w, None) for w in words]
         prev_word = words[-1] if words else None
         candidates = gen._resonance_candidates(context_ids, all_pv, set(), prev_word=prev_word)
         if not candidates:

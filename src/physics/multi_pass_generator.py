@@ -19,7 +19,7 @@
 import numpy as np
 import logging
 from src.physics.coherence_feedback import CoherenceFeedback
-from src.physics.constants import TOTAL_DIM
+from src.physics.constants import TOTAL_DIM, PHASE_DIM
 
 logger = logging.getLogger(__name__)
 
@@ -173,7 +173,7 @@ class MultiPassGenerator:
                         if context_pvs:
                             target = np.mean(context_pvs, axis=0)
                             from src.physics.word_physics import phase_similarity
-                            sim = phase_similarity(cw_pv[:22], target[:22])
+                            sim = phase_similarity(cw_pv[:PHASE_DIM], target[:PHASE_DIM])
                             candidates.append((cw, sim * row[cid]))
 
             if candidates:

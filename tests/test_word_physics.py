@@ -1,3 +1,4 @@
+from src.physics.constants import PHASE_DIM
 from src.physics.word_physics import (
     compute_word_frequency,
     compute_word_energy,
@@ -25,7 +26,7 @@ class TestWordPhysics:
     def test_phase_vector_shape(self):
         for word in ["\u0639\u0644\u0645", "\u064A\u0643\u062A\u0628"]:
             v = compute_word_phase_vector(word)
-            assert v.shape == (22,), f"shape({word}) = {v.shape}"
+            assert v.shape == (PHASE_DIM,), f"shape({word}) = {v.shape}"
 
     def test_energy_from_frequency(self):
         f = compute_word_frequency("\u0642\u0644\u0645")

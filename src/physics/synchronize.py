@@ -39,7 +39,7 @@ class Vocabulary:
 
     def add_word(self, word):
         """إضافة كلمة جديدة بعد بناء المعجم (ديناميكي).
-        
+
         الكلمة تضاف بدون تعديل المصفوفة K.
         تُرجع id الكلمة (جديد أو موجود).
         """
@@ -51,6 +51,32 @@ class Vocabulary:
         self.id2word[wid] = w
         self.next_id += 1
         return wid
+
+    def load_supplemental(self, json_path):
+        """تحميل كلمات إضافية من ملف JSON.
+
+        Args:
+            json_path: مسار ملف JSON يحتوي على قائمة كلمات بالمفتاح 'words'
+
+        Returns:
+            int: عدد الكلمات المضافة فعلياً
+        """
+        import json, os, logging
+        logger = logging.getLogger(__name__)
+        if not os.path.exists(json_path):
+            logger.warning(f"  Supplemental vocab not found: {json_path}")
+            return 0
+        with open(json_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        words = data.get('words', [])
+        added = 0
+        for w in words:
+            prev = self.word2id.get(_normalize_letters(w))
+            self.add(w)
+            if self.word2id.get(_normalize_letters(w)) != prev or prev is None:
+                added += 1
+        logger.info(f"  ✓ Loaded {added} supplemental words from {json_path}")
+        return added
 
     def __len__(self):
         return self.next_id

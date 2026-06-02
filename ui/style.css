@@ -1397,5 +1397,129 @@ body {
 .radar-val {
     font-size: 0.7rem;
     color: var(--text-muted);
+}
+
+/* ═══ V8 Pillars ═══ */
+.v8-pillars {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-glass);
+    flex-wrap: wrap;
+}
+.v8-pillar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 4px 8px;
+    background: rgba(139, 92, 246, 0.08);
+    border-radius: 8px;
+    font-size: 0.7rem;
+    gap: 2px;
+}
+.v8-pillar strong { font-size: 0.85rem; }
+.v8-pillar small { color: var(--text-muted); font-size: 0.65rem; }
+
+/* ═══ Physics Trace Panel ═══ */
+.phys-trace-container {
+    padding: 20px;
+    overflow-y: auto;
+    max-height: calc(100vh - 200px);
+}
+.trace-header {
+    margin-bottom: 20px;
+}
+.trace-header h2 {
+    font-size: 1.2rem;
+    margin-bottom: 10px;
+    color: var(--accent);
+}
+.trace-summary-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+.trace-summary-row span {
+    background: rgba(255,255,255,0.04);
+    padding: 4px 10px;
+    border-radius: 6px;
+}
+.trace-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 20px;
+}
+.trace-step {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 8px;
+    border: 1px solid var(--border-glass);
+}
+.trace-step-num {
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--primary);
+    border-radius: 50%;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: white;
+}
+.trace-step-word {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-light);
+    min-width: 80px;
+}
+.trace-step-metrics {
+    display: flex;
+    gap: 10px;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-left: auto;
+}
+.trace-step-metrics span {
+    background: rgba(255,255,255,0.05);
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+.trace-topk {
+    padding: 10px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    background: rgba(139,92,246,0.05);
+    border-radius: 6px;
+    margin-top: 8px;
+}
+.trace-charts {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+.trace-chart {
+    flex: 1;
+    min-width: 280px;
+    padding: 12px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 10px;
+    border: 1px solid var(--border-glass);
+}
+.trace-chart h4 {
+    font-size: 0.8rem;
+    margin-bottom: 8px;
+    color: var(--text-muted);
+}
+.trace-chart canvas {
+    width: 100%;
+    max-width: 400px;
+    background: rgba(0,0,0,0.2);
+    border-radius: 4px;
+}
     font-family: 'Inter', sans-serif;
 }

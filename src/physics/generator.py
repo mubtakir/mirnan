@@ -19,6 +19,7 @@ V5.2 الإضافات:
 """
 import re
 import os
+import json
 import logging
 import numpy as np
 import yaml
@@ -41,6 +42,7 @@ from src.physics.syntax_field import compute_syntax_vector, SYNTAX_ANCHORS
 from src.physics.pragmatic_field import PragmaticBindingEngine
 from src.physics.poetic_gravity import PoeticGravityEngine
 from src.physics.weight_resonance import WeightResonanceEngine
+from src.physics.mizan_engine import MizanEngine
 from src.physics.word_spectrum import spectral_resonance, compute_word_spectrum, spectral_density
 from src.physics.local_thermo_gate import local_entropy, local_temperature, compute_theta, adjust_k_B, adjust_beta
 from src.physics.dialogue_memory import DialogueMemory
@@ -53,6 +55,7 @@ from src.physics.spectral_memory import GlobalSpectralMemory, build_contexts_map
 from src.physics.resonant_chain import ResonantChain
 from src.physics.concept_matrix import ConceptMatrix, build_multi_k
 from src.physics.causal_engine import CausalPhaseEngine
+from src.physics.carrier_engine import CarrierWaveEngine
 from src.physics.rotating_anchor import RotatingAnchor
 from src.physics.spectral_wave_engine import (
     SpectralCouplingMatrix, PhysicsGenerativeNetwork,
@@ -96,8 +99,29 @@ from src.physics.chaos_and_entanglement import (
 )
 from src.physics.density_matrix import QuantumDensityMatrix
 from src.physics.causal_flow import CausalFlowField
+from src.physics.prompt_constraint import PromptConstraintField
+from src.physics.holographic_kb import HolographicKB, build_holographic_kb
+from src.physics.path_integral_reasoner import PhasePathIntegralReasoner
+from src.physics.operators import ContextualOperators
 
 logger = logging.getLogger(__name__)
+
+
+def _is_noise_token(word):
+    """استبعاد الإيموجي والرموز التي تلوّث اختيار المرشحين.
+    الكلمة الصالحة تحتوي على حرف عربي أو لاتيني واحد على الأقل.
+    """
+    if not word:
+        return True
+    has_letter = any(
+        ('a' <= c.lower() <= 'z') or ('\u0600' <= c <= '\u06ff')
+        for c in word
+    )
+    return not has_letter
+
+
+def _is_english_word(word):
+    return bool(re.search(r'[a-zA-Z]', word))
 
 
 def load_config(config_path=None):
@@ -130,37 +154,42 @@ class UniversalRootExtractor:
             return self.english.extract(word)
         return self.arabic.extract(word)
 
-_SENTENCE_STARTERS = {
-    'إن', 'قد', 'لقد', 'سوف', 'هل', 'ما', 'من', 'هذا', 'هذه',
-    'ذلك', 'تلك', 'هناك', 'هنا', 'عندما', 'حيث', 'بينما', 'ربما', 'كان', 'كانت',
-    'ليس', 'ليست', 'يكون', 'تكون', 'أصبح', 'يجب', 'يمكن', 'لا', 'لن', 'لم',
-    'إذا', 'لو', 'لولا', 'كل', 'بعض', 'نفس', 'ذات', 'أول', 'آخر', 'بعد', 'قبل',
-    'فقط', 'حقاً', 'فعلاً', 'بالفعل', 'بالطبع',
-    'في', 'اذا', 'ان', 'كيف', 'لماذا', 'ماذا', 'اين', 'متي', 'هو', 'هي', 'هم',
-    'علي', 'الي', 'عن',
-}
+_SENTENCE_BOUNDARIES = None
 
-_SENTENCE_ENDERS = {
-    'تماماً', 'بالكامل', 'نهائياً', 'مطلقاً', 'أبداً',
-    'وحسب', 'وكفى', 'لحظتها', 'حينها', 'آنذاك',
-    'الخلاصة', 'ختاماً', 'النهاية',
-    'الاساسيه', 'الاولي', 'الاوليه', 'واحد', 'واحده',
-    'اخري', 'مختلفه', 'بالضبط', 'نفسه',
-}
+def _load_sentence_boundaries():
+    global _SENTENCE_BOUNDARIES
+    if _SENTENCE_BOUNDARIES is not None:
+        return _SENTENCE_BOUNDARIES
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'data', 'sentence_boundaries.json')
+    if os.path.exists(path):
+        with open(path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        _SENTENCE_BOUNDARIES = {
+            'ar_starters': set(data.get('arabic_starters', [])),
+            'ar_enders': set(data.get('arabic_enders', [])),
+            'en_starters': set(data.get('english_starters', [])),
+            'en_enders': set(data.get('english_enders', [])),
+        }
+    else:
+        _SENTENCE_BOUNDARIES = {'ar_starters': set(), 'ar_enders': set(), 'en_starters': set(), 'en_enders': set()}
+    return _SENTENCE_BOUNDARIES
 
-_EN_SENTENCE_STARTERS = {
-    'the', 'a', 'an', 'this', 'that', 'these', 'those', 'my', 'our', 'your',
-    'his', 'her', 'its', 'their', 'i', 'you', 'he', 'she', 'it', 'we', 'they',
-    'there', 'here', 'what', 'where', 'when', 'why', 'how', 'who', 'which',
-    'please', 'do', 'does', 'did', 'can', 'could', 'will', 'would', 'shall',
-    'should', 'may', 'might', 'must',
-}
+def _get_sentence_starters():
+    return _load_sentence_boundaries()['ar_starters']
 
-_EN_SENTENCE_ENDERS = {
-    'indeed', 'finally', 'altogether', 'anymore', 'anyway',
-    'overall', 'therefore', 'thus', 'hence', 'accordingly',
-    'consequently', 'meanwhile', 'nevertheless', 'nonetheless',
-}
+def _get_sentence_enders():
+    return _load_sentence_boundaries()['ar_enders']
+
+def _get_en_sentence_starters():
+    return _load_sentence_boundaries()['en_starters']
+
+def _get_en_sentence_enders():
+    return _load_sentence_boundaries()['en_enders']
+
+_SENTENCE_STARTERS = _get_sentence_starters()
+_SENTENCE_ENDERS = _get_sentence_enders()
+_EN_SENTENCE_STARTERS = _get_en_sentence_starters()
+_EN_SENTENCE_ENDERS = _get_en_sentence_enders()
 
 
 def _is_english_word(word):
@@ -173,6 +202,13 @@ class Generator:
         self.config = config if config is not None else load_config()
         self.alpha = self.config.get('alpha', 0.3)
         self.vocab = vocab
+        # ═══ V8.8: Auto-load supplemental vocabulary for KB reasoning ═══
+        supp_path = self.config.get('vocab_supplemental', os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'model', 'vocab_supplemental.json'))
+        if os.path.exists(supp_path):
+            n = self.vocab.load_supplemental(supp_path)
+            if n > 0:
+                logger.info(f"  ✓ Vocabulary expanded with {n} supplemental words")
         self.K_syn = K_syn
         self.K_sem = K_sem if K_sem is not None else coupling_K
         self.K_conc = K_conc
@@ -249,16 +285,19 @@ class Generator:
             entity_register=self.entity_register,
         )
         self.root_extractor = UniversalRootExtractor()
+        self.mizan_engine = MizanEngine()
         self.rotating_anchor = RotatingAnchor(n_components=3, eps=0.5, min_samples=3)
-        try:
-            self.rotating_anchor.fit(self.vocab, self._all_pv)
-        except Exception as e:
-            logger.warning(f"RotatingAnchor init: {e}")
+        if not self.config.get('fast_init', False):
+            try:
+                self.rotating_anchor.fit(self.vocab, self._all_pv)
+            except Exception as e:
+                logger.warning(f"RotatingAnchor init: {e}")
         self.spectral_coupling = SpectralCouplingMatrix()
-        try:
-            self.spectral_coupling.fit(self.vocab, coupling_K, corpus_texts)
-        except Exception as e:
-            logger.warning(f"SpectralCouplingMatrix init: {e}")
+        if not self.config.get('fast_init', False):
+            try:
+                self.spectral_coupling.fit(self.vocab, coupling_K, corpus_texts)
+            except Exception as e:
+                logger.warning(f"SpectralCouplingMatrix init: {e}")
         self.pgn = PhysicsGenerativeNetwork(self.spectral_coupling)
 
         # ═══ المحركات الحديثة للإبداع والتشابك ═══
@@ -269,6 +308,15 @@ class Generator:
         self.old_semantic_dim = PHASE_DIM + ROOT_DIMS + EXTRA_DIMS
         self.syn_start = self.old_semantic_dim
         self.sem_start = PHASE_DIM + ROOT_DIMS + EXTRA_DIMS + SYNTAX_DIMS
+        
+        # ═══ محرك الموجة الحاملة — طيف الرفيقات ═══
+        self.carrier_engine = CarrierWaveEngine()
+        carrier_path = 'data/carrier_spectra.npz'
+        if os.path.exists(carrier_path):
+            self.carrier_engine.load(carrier_path, vocab=self.vocab)
+        if not self.carrier_engine.is_built:
+            self.carrier_engine.bootstrap_from_vocab(self.vocab)
+        
         if corpus_texts:
             self.syntax_field.extract(corpus_texts)
             if not self.spectral_memory.is_loaded:
@@ -318,6 +366,42 @@ class Generator:
             flow_strength=_cf_cfg.get('strength', 1.0),
         )
 
+        # ═══ V8.8: حقل قيود Dirichlet — prompt كشروط حدودية ═══
+        _pc_cfg = self.config.get('prompt_constraint', {})
+        self.prompt_constraint = PromptConstraintField(
+            k_spring=_pc_cfg.get('k_spring', 3.0),
+            damping=_pc_cfg.get('damping', 0.15),
+        )
+
+        # ═══ V8.8: ذاكرة هولوغرافية معرفية — حقائق كأنماط تداخل ═══
+        self.holographic_kb = None
+        _hkb_cfg = self.config.get('holographic_kb', {})
+        if _hkb_cfg.get('enabled', True):
+            try:
+                self.holographic_kb = build_holographic_kb(
+                    vocab=self.vocab,
+                    pv_fn=self._get_pv_fast,
+                    corpus_texts=corpus_texts,
+                    data_dir='data',
+                    max_facts=_hkb_cfg.get('max_facts', 500),
+                    curated_path=_hkb_cfg.get('curated_path', 'data/facts_curated.json'),
+                )
+            except Exception as e:
+                logger.warning(f"HolographicKB init skipped: {e}")
+
+        # ═══ V8.8: تبريد محاكى (Simulated Annealing) ═══
+        _anneal_cfg = self.config.get('annealing', {})
+        self.tau_max = _anneal_cfg.get('tau_max', 2.5)
+        self.tau_min = _anneal_cfg.get('tau_min', 0.15)
+        self.tau_decay = _anneal_cfg.get('tau_decay', 5.0)
+        self.current_tau = self.tau_max
+
+        # ═══ V8.8: مسبب التكامل المساري (Path Integral Reasoner) ═══
+        self.reasoner = PhasePathIntegralReasoner(self)
+
+        # ═══ V9: محرك المؤثرات السياقية (Contextual Operators) ═══
+        self.contextual_operators = ContextualOperators()
+
         self.W = self._init_weights()
 
     def set_cascade(self, enabled, lambda_cascade=1.8):
@@ -326,12 +410,27 @@ class Generator:
             self.cascade_layer.lambda_cascade = lambda_cascade
 
     def _init_pv_matrix(self):
+        cache_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'model', '_all_pv_cache.npy')
+        if os.path.exists(cache_path):
+            logger.info(f'  ✓ تحميل مخبأ المتجهات الطورية ({cache_path})...')
+            pv = np.load(cache_path)
+            if pv.shape[0] >= self.V and pv.shape[1] == TOTAL_DIM:
+                return pv[:self.V, :]
+            logger.info('  ⚠ المخبأ لا يتطابق، إعادة الحساب...')
+
+        logger.info(f'  حساب المتجهات الطورية لـ {self.V:,} كلمة (قد يستغرق دقائق)...')
         pv = np.zeros((self.V, TOTAL_DIM))
-        for wid, word in self.vocab.id2word.items():
+        for i, (wid, word) in enumerate(self.vocab.id2word.items()):
+            if i % 10000 == 0 and i > 0:
+                logger.info(f'    {i/self.V*100:.0f}% ({i:,}/{self.V:,})...')
             if is_particle(word):
                 pv[wid] = np.random.randn(TOTAL_DIM) * 0.01
             else:
                 pv[wid] = compute_extended_phase_vector(word, vocab=self.vocab, K=self.K, morpho=self.morpho)
+        
+        os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+        np.save(cache_path, pv)
+        logger.info(f'  ✓ حفظ المخبأ: {cache_path}')
         return pv
 
     def _noun_boost(self, word):
@@ -345,6 +444,10 @@ class Generator:
             val = 1.5 if cos > 0.7 else 1.0
         except Exception:
             val = 1.5 if ArabicGrammar.is_noun_like(word) else 1.0
+        if not hasattr(self, '_noun_boost_logged'):
+            import logging as _logmod; _logmod.getLogger('generator').debug(
+                f'_noun_boost: using fallback for "{word}" (compute_syntax_vector failed)')
+            self._noun_boost_logged = True
         self._noun_boost_cache[word] = val
         return val
 
@@ -356,7 +459,8 @@ class Generator:
         if wid is not None and self.K is not None and wid < self.K.shape[0]:
             row = self.K[wid].toarray().ravel()
             k_boost = 1.0 + float(row.mean()) * 5.0
-        return base * boost * k_boost
+        mass = base * boost * k_boost
+        return min(mass, 5.0)  # cap to prevent code-word dominance
 
     def _init_weights(self):
         # تحميل أوزان مخصصة من config.yaml إن وُجدت
@@ -382,6 +486,12 @@ class Generator:
         raw_root_align = cfg_w.get('root_align', 0.80)
         raw_ram_plan = cfg_w.get('ram_plan', 1.00)
         raw_gravity = cfg_w.get('gravity', 1.50)
+        raw_mizan_coherence = cfg_w.get('mizan_coherence', 3.0)
+        raw_beamform = cfg_w.get('beamform', 3.0)
+        raw_refractory = cfg_w.get('refractory', 2.5)
+        raw_macro_wave = cfg_w.get('macro_wave', 2.0)
+        raw_carrier = cfg_w.get('carrier', 4.0)
+        raw_k_coupling = cfg_w.get('k_coupling', 3.0)
         raw_heterodyne = cfg_w.get('heterodyne', 2.50)
         raw_oscillator = cfg_w.get('oscillator', 1.50)
         raw_pragmatic = cfg_w.get('pragmatic', 1.50)
@@ -431,11 +541,15 @@ class Generator:
         raw_partonic_cross = cfg_w.get('partonic_cross', 2.00)
         raw_causal_flow_align = cfg_w.get('causal_flow_align', 2.50)
         raw_hierarchical_mod = cfg_w.get('hierarchical_mod', 2.00)
+        raw_constraint_align = cfg_w.get('constraint_align', 4.0)
+        raw_kb_knowledge = cfg_w.get('kb_knowledge', 2.5)
         pos_terms = [raw_align, raw_prompt, raw_diversity, raw_syntax,
                      raw_resonance, raw_symbolic, raw_morpho,
                      raw_morpho_trans, raw_sentence, raw_pos_alt, raw_irab,
                      raw_syntax_gate, raw_syntax_phase, raw_phil_semantic,
-                      raw_root_align, raw_ram_plan, raw_gravity, raw_heterodyne, raw_oscillator, raw_pragmatic,
+                      raw_root_align, raw_ram_plan, raw_gravity, raw_mizan_coherence,
+                     raw_beamform, raw_refractory, raw_macro_wave, raw_carrier, raw_k_coupling,
+                     raw_heterodyne, raw_oscillator, raw_pragmatic,
                      raw_weight_resonance, raw_poetic, raw_rhyme,
                      raw_spectral, raw_thermo,
                      raw_dialogue_gravity, raw_dialogue_spectral,
@@ -451,8 +565,8 @@ class Generator:
                       raw_syn, raw_sem, raw_conc, raw_causal, raw_resonant_chain,
                       raw_dccf, raw_ppm, raw_amfs, raw_cascade, raw_dialogue, raw_category, raw_contextual_spectra,
                       raw_trajectory, raw_hierarchical, raw_intent_landscape, raw_trace, raw_relational,
-                      raw_architect, raw_density_resonance, raw_partonic_cross, raw_causal_flow_align,
-                      raw_hierarchical_mod]
+                       raw_architect, raw_density_resonance, raw_partonic_cross, raw_causal_flow_align,
+                       raw_hierarchical_mod, raw_constraint_align, raw_kb_knowledge]
         pos_sum = sum(pos_terms)
         scale = 0.95 / pos_sum
         return {
@@ -474,6 +588,12 @@ class Generator:
             'root_align': raw_root_align * scale,
             'ram_plan': raw_ram_plan * scale,
             'gravity': raw_gravity * scale,
+            'mizan_coherence': raw_mizan_coherence * scale,
+            'beamform': raw_beamform * scale,
+            'refractory': raw_refractory * scale,
+            'macro_wave': raw_macro_wave * scale,
+            'carrier': raw_carrier * scale,
+            'k_coupling': raw_k_coupling * scale,
             'heterodyne': raw_heterodyne * scale,
             'oscillator': raw_oscillator * scale,
             'pragmatic': raw_pragmatic * scale,
@@ -523,6 +643,8 @@ class Generator:
             'partonic_cross': raw_partonic_cross * scale,
             'causal_flow_align': raw_causal_flow_align * scale,
             'hierarchical_mod': raw_hierarchical_mod * scale,
+            'constraint_align': raw_constraint_align * scale,
+            'kb_knowledge': raw_kb_knowledge * scale,
         }
 
     def _get_pv(self, word):
@@ -604,18 +726,26 @@ class Generator:
         return phase_similarity(target_sem, w_sem)
 
     def _n_body_gravity(self, word, w_pv, context_words, context_pvs):
+        """جاذبية حقيقية F = G·m₁·m₂/r² في فضاء 56D الكامل (غير المُطبَّع).
+        
+        المتجهات المستخدمة هي الـ 56D الكاملة غير المطبَّعة، مما يعني:
+          r² = ∥a∥² + ∥b∥² - 2·a·b  ← ثلاثة حدود مستقلة
+        ليست قابلة للاختزال إلى دالة cos فقط (لأن ∥a∥ ≠ ∥b∥ ≠ 1).
+        """
         if not context_words:
             return 0.0
         n_words = len(context_words)
         c_masses = np.array([self._dyn_mass(c) for c in context_words])
-        w_pv_trunc = w_pv[:self.old_semantic_dim]
+        # استخدام المتجهات الكاملة 56D غير المطبَّعة لحساب المسافة الإقليدية الحقيقية
+        w_pv_full = w_pv
         phase_aligns = np.zeros(n_words)
         grav_forces = np.zeros(n_words)
         for i, c in enumerate(context_words):
-            c_pv = context_pvs[i][:self.old_semantic_dim]
-            phase_aligns[i] = phase_similarity(c_pv, w_pv_trunc)
-            vec_dist = np.linalg.norm(c_pv - w_pv_trunc) + 1e-10
-            grav_forces[i] = c_masses[i] / (vec_dist ** 2)
+            c_pv_full = context_pvs[i]
+            phase_aligns[i] = phase_similarity(c_pv_full, w_pv_full)
+            # المسافة الإقليدية في 56D — تعتمد على أطوال المتجهات وليس فقط الزاوية
+            vec_dist = np.linalg.norm(c_pv_full - w_pv_full) + 1e-10
+            grav_forces[i] = c_masses[i] / (4.0 * np.pi * vec_dist ** 2 + 1e-10)  # شاشة 4πr²
         field_strength = grav_forces * phase_aligns
         total_field = np.sum(field_strength)
         return float(total_field) / max(float(n_words), 1.0)
@@ -862,9 +992,12 @@ class Generator:
             gravity_score = self._n_body_gravity(word, w_pv, context_words, all_pv)
 
         heterodyne_score = 0.0
-        if context_ids and wid is not None and hasattr(self, 'heterodyne'):
-            heterodyne_score = self.heterodyne.compute_k_weighted_resonance(
-                wid, context_ids, self.K_sem, self.vocab, context_words)
+        if context_ids and wid is not None and hasattr(self, 'heterodyne') and context_words:
+            candidate_spectrum = self.heterodyne.get_word_spectrum(word)
+            sidebands = self.heterodyne.compute_sidebands(
+                context_words[-1] if context_words else word, context_words)
+            heterodyne_score = self.heterodyne.compute_candidate_resonance(
+                word, candidate_spectrum, sidebands)
 
         osc_score = 0.0
         if hasattr(self, 'osc_engine'):
@@ -1093,37 +1226,11 @@ class Generator:
         score += cohesion_mult * 3.0 * cohesion_val
 
         if gen_pos < 3:
-            dyn_syn, dyn_sem, dyn_conc = 1.5, 1.0, 0.5
+            dyn_phase_weight = 1.5
         else:
-            dyn_syn, dyn_sem, dyn_conc = 0.5, 1.0, 1.5
+            dyn_phase_weight = 1.0
 
-        k_syn_score = 0.0
-        k_sem_score = 0.0
-        k_conc_score = 0.0
-        
-        if context_ids:
-            def calc_k_score(matrix, window_limit):
-                if matrix is None: return 0.0
-                limit = min(window_limit, len(context_ids))
-                val_sum = 0.0
-                hits = 0
-                for i in range(1, limit + 1):
-                    cid = context_ids[-i]
-                    if cid is not None and cid < matrix.shape[0] and wid < matrix.shape[1]:
-                        val = max(float(matrix[cid, wid]), 0.0)
-                        if hasattr(self, 'K_dyn') and matrix is self.K_sem:
-                            val += self.K_dyn.get((cid, wid), 0.0) * 5.0
-                        if val > 0:
-                            row_sum = float(matrix[cid].sum())
-                            prob = val / max(row_sum, 1.0)
-                            val_sum += prob / float(i)
-                            if prob > 0.005: hits += 1
-                return val_sum * (hits ** 1.5) if val_sum > 0 else 0.0
-
-            k_syn_score = calc_k_score(self.K_syn, 2)
-            k_sem_score = calc_k_score(self.K_sem, 5)
-            k_conc_score = calc_k_score(self.K_conc, 10)
-
+        # التنشيط الطوري: exp(β·sim) بين المرشح والسياق — كلما زاد التوافق زاد الوزن
         n_pv = min(3, len(all_pv))
         act = 0.0
         if n_pv > 0:
@@ -1133,16 +1240,9 @@ class Generator:
         else:
             act = 1.0
 
-        # الحروف النحوية لا تمتلك معنى دلالي — تعطيل scores الدلالية لها
+        # الحروف النحوية لا تمتلك معنى دلالي — تعطيل التنشيط الطوري لها
         if is_particle(word):
-            k_syn_score = 0.0
-            k_sem_score = 0.0
-            k_conc_score = 0.0
             act = 0.0
-
-        score += self.W.get('syn', 0.0) * dyn_syn * k_syn_score * act
-        score += self.W.get('sem', 0.0) * dyn_sem * k_sem_score * act
-        score += self.W.get('conc', 0.0) * dyn_conc * k_conc_score * act
 
         if self.bridge:
             score += self.W.get('symbolic', 0.0) * self.bridge.evaluate(word, [prev_word] if prev_word else [])
@@ -1184,19 +1284,6 @@ class Generator:
             )
         score += self.W.get('dialogue', 0.0) * dialogue_score
 
-        # مكافأة K_dialogue — تخبر النموذج: "هذه الكلمة مناسبة حوارياً"
-        # كلما زادت إشارة K_dialogue، زادت المكافأة — تسود على ضوضاء K_sem
-        k_dialogue_score = 0.0
-        if self.dialogue_mode and context_ids and self.K_dialogue is not None:
-            limit = min(3, len(context_ids))
-            for i in range(1, limit + 1):
-                cid = context_ids[-i]
-                if cid is not None and cid < self.K_dialogue.shape[0] and wid < self.K_dialogue.shape[1]:
-                    val = float(max(self.K_dialogue[cid, wid], 0.0))
-                    if val > 0:
-                        k_dialogue_score += val / float(i)
-        score += k_dialogue_score / 10.0
-
         # تصنيف دلالي — مكافأة للكلمات من نفس فئة السياق
         category_score = 0.0
         if context_words:
@@ -1236,13 +1323,11 @@ class Generator:
             trace_score = self.interaction_trace.get_context_boost(w_pv)
         score += self.W.get('trace', 0.0) * trace_score
 
-        # K علاقية — استخراج نسب محددة من K المشفرة
+        # K علاقية — استخراج نسب محددة من العلاقات المشفرة
         relational_score = 0.0
-        if context_ids and wid is not None and hasattr(self, 'relational_k'):
-            for rtype in ['sem', 'verb_obj', 'adj_noun']:
-                relational_score += self.relational_k.relational_score(
-                    wid, context_ids, self.K_sem, relation_type=rtype)
-            relational_score /= 3.0
+        if context_ids and wid is not None and hasattr(self, 'relational_k') and context_words:
+            relational_score = self.relational_k.relational_score(
+                wid, context_ids, self.K_sem, relation_type='sem')
         score += self.W.get('relational', 0.0) * relational_score
 
         # بناء معماري — توجيه الرد حسب خطة محرك البناء
@@ -1250,7 +1335,7 @@ class Generator:
         if self.dialogue_mode and hasattr(self, 'response_architect'):
             if hasattr(self, '_architect_guidance') and self._architect_guidance is not None:
                 architect_score = self.response_architect.compute_architect_score(
-                    word, self._architect_guidance, vocab=self.vocab, K_sem=self.K_sem)
+                    word, self._architect_guidance, vocab=self.vocab)
         score += self.W.get('architect', 0.0) * architect_score
 
         # Potential Cascade — هوي تراكمي حتمي (اختياري)
@@ -1279,96 +1364,181 @@ class Generator:
             context_ids, all_pv)
         score += self.W.get('causal_flow_align', 0.0) * causal_flow_score
 
-        # ═══ V8.4: تعديل هرمي موجي AM/FM ═══
-        hierarchical_mod_score = self._hierarchical_modulation(w_pv)
-        score += self.W.get('hierarchical_mod', 0.0) * hierarchical_mod_score
+        # ═══ V8.7: محرك اتساق الميزان الفيزيائي (Al-Mizan Engine) ═══
+        mizan_score = 0.0
+        if context_words:
+            mizan_score = self.mizan_engine.get_mizan_score(context_words, word)
+        score += self.W.get('mizan_coherence', 0.0) * mizan_score
+
+        # ═══ V8: تعديل هرمي موجي AM/FM (بديل الطبقات العميقة) ═══
+        hmod = self._hierarchical_modulation(w_pv)
+        score += self.W.get('hierarchical_mod', 0.0) * hmod
+
+        # ═══ V8.8: قيد Dirichlet — prompt كشروط حدودية (مكافأة إضافية) ═══
+        constraint_bonus, _ = self.prompt_constraint.spring_force(
+            w_pv, gen_pos, total_pos,
+            centroid_pv=target_full if all_pv else None)
+        score += self.W.get('constraint_align', 0.0) * constraint_bonus
+
+        # ═══ V8.8: ذاكرة هولوغرافية — استرجاع معرفي (ثنائي الاتجاه + سياقي) ═══
+        kb_score = 0.0
+        if self.holographic_kb is not None and self.holographic_kb._built:
+            direct_kb = self.holographic_kb.query_bidirectional(word, top_k=5)
+            if direct_kb:
+                kb_score = max(0.0, direct_kb[0][0])
+            if context_words and len(context_words) >= 1:
+                context_matches = 0
+                for cw in context_words[-5:]:
+                    cw_results = self.holographic_kb.query_bidirectional(cw, top_k=5)
+                    for _, obj_word, _ in cw_results:
+                        if obj_word == word:
+                            context_matches += 1
+                            break
+                kb_score += context_matches * 0.5
+            kb_influence = self.config.get('kb_influence', 0.4) if self.config else 0.4
+            score += self.W.get('kb_knowledge', 0.0) * kb_score * kb_influence
+
+        # ═══ V9: مؤثرات سياقية — نفي، تضخيم، تباين، شرط ═══
+        operator_boost = 0.0
+        if hasattr(self, 'contextual_operators') and context_words:
+            operator_boost = self.contextual_operators.compute_boost(
+                word, context_words, self.vocab, self._get_pv_fast)
+        score += operator_boost * 0.5  # وزن معتدل للمؤثرات
 
         score = float(np.clip(score, -5.0, 5.0))
 
         return score
 
     def _resonance_candidates(self, context_ids, all_pv, used_set, beta_cur=None, prev_word=None):
+        """اختيار المرشحين عبر التناغم الطوري والجاذبية الفيزيائية — بدون مصفوفة K الإحصائية.
+        
+        المبدأ: كل كلمة موجة لها تردد وكتلة. الكلمات تتجاذب جاذبياً في فضاء الطور
+        حسب قانون F = G·m₁·m₂/r² حيث r هي المسافة الطورية بين متجهي الكلمتين.
+        أقوى الكلمات تجاذباً مع حقل السياق هي المرشحة للتوليد.
+        """
         beta = beta_cur if beta_cur is not None else self.beta
-        scores = {}
-        last_id = context_ids[-1] if context_ids else None
-        if last_id is None or self.K is None or last_id >= self.K.shape[0]:
+        if len(all_pv) == 0:
             return []
 
-        def get_prob_row(cid, matrix=None):
-            if matrix is None:
-                matrix = self.K
-            r = matrix[cid].toarray().ravel()
-            total = r.sum()
-            return r / max(total, 1.0)
+        n_ctx = min(5, len(all_pv))
+        
+        # ═══ بناء حقل الطور السياقي — مركز ثقل الطور الموزون ═══
+        ctx_pvs = np.array([p for p in all_pv[-n_ctx:]])
+        ctx_masses = np.array([self._dyn_mass(
+            self.vocab.id2word.get(cid, '')) for cid in context_ids[-n_ctx:]
+        ] if context_ids else [1.0] * n_ctx)
+        
+        # كلمات السياق الأحدث لها وزن أكبر (اضمحلال أسي)
+        pos_weights = np.exp(-np.arange(n_ctx)[::-1] * 0.4)
+        pos_weights = pos_weights / max(pos_weights.sum(), 1e-10)
+        
+        # مركز الطور السياقي: متوسط متجهات الطور موزوناً بالكتلة والموقع (56D كامل غير مُطبَّع)
+        ctx_center = np.average(ctx_pvs, axis=0, weights=pos_weights * ctx_masses)
+        ctx_norm = np.linalg.norm(ctx_center)
+        if ctx_norm < 1e-10:
+            ctx_center_norm = ctx_center
+        else:
+            ctx_center_norm = ctx_center / ctx_norm
 
-        # رنين أساسي من K_sem (المعرفة)
-        row = get_prob_row(last_id).copy()
-        n_ctx = min(3, len(context_ids))
-        for i in range(2, n_ctx + 1):
-            cid = context_ids[-i]
-            if cid is not None and cid < self.K.shape[0]:
-                ctx_row = get_prob_row(cid)
-                row += ctx_row * (2.0 / i)
+        # ═══ الجاذبية الطورية: لكل كلمة في المعجم، نحسب قوة التجاذب ═══
+        # استخدام المتجهات الكاملة 56D غير المطبَّعة — r² لا يمكن اختزاله إلى cos فقط
+        vocab_pvs = self._all_pv
+        
+        # تشابه الطور (cosine similarity) = محاذاة الطور بين الكلمة وحقل السياق
+        phase_aligns = np.dot(vocab_pvs, ctx_center_norm)
+        
+        # المسافة الطورية الإقليدية = r في قانون الجاذبية (56D غير مُطبَّع)
+        vocab_norms = np.linalg.norm(vocab_pvs, axis=1)
+        # r² = ∥v_i∥² + ∥ctx∥² - 2·dot(v_i, ctx)  ← ثلاثة حدود مستقلة
+        r_sq = vocab_norms**2 + ctx_norm**2 - 2.0 * np.dot(vocab_pvs, ctx_center)
+        r_sq = np.maximum(r_sq, 0.01)
+        
+        # كتل ديناميكية لكل الكلمات
+        masses = np.ones(self.V)
+        for i in range(min(self.V, len(self._all_pv))):
+            w = self.vocab.id2word.get(i)
+            if w and _is_noise_token(w):
+                masses[i] = 0.0  # إبطال الجاذبية للرموز والإيموجي
+            elif w and not is_particle(w):
+                masses[i] = max(0.1, self._dyn_mass(w))
+            elif w:
+                masses[i] = 0.05  # كتلة منخفضة للحروف النحوية
+        
+        # ═══ F = G · m_i · m_ctx / A(S²) — شاشة هولوغرافية 4πr² ═══
+        G_PHASE = 1.0
+        # توزيع القوة على سطح الكرة: 1/(4πr²) بدل 1/r²
+        grav_force = G_PHASE * masses * ctx_masses.mean() / (4.0 * np.pi * r_sq + 1e-10)
+        grav_force = np.maximum(grav_force, 0.0)
+        
+        # ═══ درجة الرنين = محاذاة الطور × قوة الجاذبية ═══
+        grav_scores = np.maximum(phase_aligns, 0.0) * grav_force * masses
+        
+        # ═══ تركيز الشعاع (Beamformer) إن وُجد — يعزز الكلمات في بؤرة الحقل ═══
+        if hasattr(self, 'beamformer') and len(ctx_pvs) >= 2:
+            try:
+                beam_pv, beam_weights, focus = self.beamformer.beamform(
+                    ctx_center, ctx_pvs,
+                    [self.vocab.id2word.get(cid, '') for cid in context_ids[-n_ctx:]])
+                if focus > 0 and np.linalg.norm(beam_pv) > 1e-10:
+                    beam_aligns = np.dot(vocab_pvs, beam_pv / np.linalg.norm(beam_pv))
+                    grav_scores += focus * np.maximum(beam_aligns, 0.0) * masses * 0.5
+            except Exception:
+                pass
 
-        if len(context_ids) > 3:
-            prompt_id = context_ids[0]
-            if prompt_id is not None and prompt_id < self.K.shape[0]:
-                prompt_row = get_prob_row(prompt_id)
-                row += prompt_row * 1.5
+        # ═══ اختيار المرشحين الأعلى رنيناً ═══
+        n_select = min(self.top_k * 4, self.V)
+        top_indices = np.argsort(grav_scores)[::-1][:n_select]
 
-        # في وضع الحوار، ندمج رنين K_dialogue (pattern الحوار) مع K_sem (المعرفة)
-        if self.dialogue_mode and self.K_dialogue is not None:
-            dial_row = get_prob_row(last_id, self.K_dialogue)
-            n_ctx = min(3, len(context_ids))
-            for i in range(2, n_ctx + 1):
-                cid = context_ids[-i]
-                if cid is not None and cid < self.K_dialogue.shape[0]:
-                    ctx_row = get_prob_row(cid, self.K_dialogue)
-                    dial_row += ctx_row * (2.0 / i)
-            if len(context_ids) > 3:
-                prompt_id = context_ids[0]
-                if prompt_id is not None and prompt_id < self.K_dialogue.shape[0]:
-                    dial_row += get_prob_row(prompt_id, self.K_dialogue) * 1.5
-            # وزن ديناميكي: كلما كانت إشارة K_dialogue أقوى، زاد وزنها
-            dial_strength = dial_row.sum()
-            sem_strength = row.sum()
-            if dial_strength > 1e-10:
-                dial_weight = dial_strength / (dial_strength + sem_strength + 1e-10)
-                sem_weight = 1.0 - dial_weight
-                row = sem_weight * row + dial_weight * dial_row
-
-        order = np.argsort(row)[::-1]
-        for wid in order[:1500]:
-            if row[wid] <= 0:
+        scores = {}
+        for wid in top_indices:
+            if grav_scores[wid] <= 1e-8:
                 continue
             w = self.vocab.id2word.get(wid)
             if not w or w in used_set or len(w) < 2:
                 continue
-            k_val = float(max(row[wid], 0.0))
-            gate = 0.0
+
             w_pv = self._get_pv_fast(w)
-            n_ctx = min(3, len(all_pv))
-            max_exp = 20.0  # سقف على exp لمنع الانفجار
-            if n_ctx > 0:
-                for cpv in all_pv[-n_ctx:]:
-                    sim = phase_similarity(cpv[:self.old_semantic_dim], w_pv[:self.old_semantic_dim])
-                    act = min(float(np.exp(beta * sim)), max_exp)
-                    gate += k_val * act
+            # تنشيط طوري: exp(β·sim) مع كل كلمة في السياق القريب
+            act = 0.0
+            for cpv in all_pv[-n_ctx:]:
+                sim = phase_similarity(cpv[:self.old_semantic_dim], w_pv[:self.old_semantic_dim])
+                act += min(float(np.exp(beta * sim)), 20.0)
+
+            # الرنين النهائي = جاذبية × (1 + تنشيط الطور)
+            # تبريد محاكى: tau>1 يُسطّح التوزيع (استكشاف)، tau<1 يُحدّده (استغلال)
+            tau = getattr(self, 'current_tau', 1.0)
+            tau_safe = max(tau, 0.1)
+            gate = (grav_scores[wid] ** (1.0 / tau_safe)) * (1.0 + act / max(n_ctx, 1))
+
+            # RAM — ذاكرة الجذب: تعزيز الكلمات التي سبق وجذبت سياقات مشابهة
             if self.ram.size > 0:
                 ram_ctx = self.ram.retrieve_context(w_pv, max_words=2)
                 if ram_ctx:
                     for cw in ram_ctx:
-                        cid2 = self.vocab.get(cw)
-                        if cid2 is not None and cid2 < self.K.shape[0] and wid < self.K.shape[1]:
-                            k2 = max(float(self.K[cid2, wid]), 0.0)
-                            cpv2 = self._get_pv_fast(cw)
-                            sim2 = phase_similarity(cpv2[:self.old_semantic_dim], w_pv[:self.old_semantic_dim])
-                            gate += 0.3 * k2 * min(float(np.exp(beta * sim2)), max_exp)
+                        cpv2 = self._get_pv_fast(cw)
+                        sim2 = phase_similarity(cpv2[:self.old_semantic_dim], w_pv[:self.old_semantic_dim])
+                        gate += 0.3 * min(float(np.exp(beta * sim2)), 20.0)
+
             if is_particle(w) and len(context_ids) > 1:
                 gen_step = len(context_ids) - 1
                 penalty = max(0.01, 1.0 - gen_step * 0.25)
                 gate *= penalty
+
             scores[w] = gate
+
+        # ═══ V8.8: KB injection — prepend KB-known words as high-priority candidates ═══
+        if self.holographic_kb is not None and self.holographic_kb._built:
+            ctx_words = [self.vocab.id2word.get(cid) for cid in context_ids[-6:] if cid is not None]
+            for cw in ctx_words:
+                if cw:
+                    kb_results = self.holographic_kb.query_bidirectional(cw, top_k=5)
+                    for _, obj_word, _ in kb_results:
+                        if obj_word and obj_word not in used_set and len(obj_word) >= 2:
+                            if obj_word in self.vocab.word2id:
+                                # High-priority score: max existing + 10
+                                kb_priority = max(scores.values()) if scores else 0.0
+                                scores[obj_word] = max(scores.get(obj_word, 0.0), kb_priority + 5.0)
+
         sorted_w = sorted(scores, key=lambda w: -scores[w])[:self.top_k]
         return sorted_w if sorted_w else []
 
@@ -1376,7 +1546,7 @@ class Generator:
         new_beams = []
         for words, used_set in zip(beams, used_sets):
             all_pv = [self._get_pv_fast(w) for w in words]
-            context_ids = [self.vocab.word2id[w] for w in words if w in self.vocab.word2id]
+            context_ids = [self.vocab.word2id.get(w, None) for w in words]
             prev_word = words[-1] if words else None
             if len(words) >= 2 and hasattr(self, 'resonant_chain'):
                 _prev_freqs = []
@@ -1562,8 +1732,11 @@ class Generator:
             result_str = self._code_generate(prompt, max_words)
         elif mode == 'dialogue':
             result_str = self._dialogue_generate(prompt_tokens, prompt, max_words)
+        elif mode == 'reason':
+            result_str = self._reasoned_generate(prompt_tokens, prompt, max_words)
         else:
             prompt_pv = [self._get_pv_fast(w) for w in prompt_tokens]
+            self.prompt_constraint.set_prompt(prompt_pv)
             self.prompt_field.absorb(prompt)
             beams = [prompt_tokens[:]]
             used_sets = [set(prompt_tokens)]
@@ -1576,6 +1749,9 @@ class Generator:
             weak_threshold = 0.05 if is_dialogue_gen else 0.2
             max_weak = 4 if is_dialogue_gen else 2
             for step in range(max_words):
+                # ═══ تبريد محاكى: τ(t) = τ_min + (τ_max-τ_min)·exp(-t/τ_decay) ═══
+                self.current_tau = self.tau_min + (self.tau_max - self.tau_min) * np.exp(-step / max(self.tau_decay, 0.5))
+                logger.debug(f"  [τ] step={step}/{max_words}  tau={self.current_tau:.4f}  (cooling curve)")
                 new = self._beam_step(beams, used_sets, prompt_pv, step=step, total=max_words, k_B_cur=k_B_cur, beta_cur=beta_cur, S=S_cur)
                 if not new: break
                 best = new[0]
@@ -1666,7 +1842,7 @@ class Generator:
         examples = {}
         for bi, (words, used_set) in enumerate(zip(beams, used_sets)):
             all_pv = [self._get_pv_fast(w) for w in words]
-            context_ids = [self.vocab.word2id[w] for w in words if w in self.vocab.word2id]
+            context_ids = [self.vocab.word2id.get(w, None) for w in words]
             prev_word = words[-1] if words else None
             if len(words) >= 2 and hasattr(self, 'resonant_chain'):
                 _prev_freqs = []
@@ -1760,7 +1936,7 @@ class Generator:
             for branch_score, words, used_set in superposition:
                 full_context = collapsed_words + words
                 all_pv = [self._get_pv_fast(w) for w in full_context]
-                context_ids = [self.vocab.word2id[w] for w in full_context if w in self.vocab.word2id]
+                context_ids = [self.vocab.word2id.get(w, None) for w in full_context]
                 prev_word = full_context[-1] if full_context else None
                 candidates = self._resonance_candidates(context_ids, all_pv, used_set, prev_word=prev_word)
                 scored_cands = []
@@ -1832,7 +2008,7 @@ class Generator:
             for branch_score, words, used_set in superposition:
                 full_context = prompt_tokens + words
                 all_pv = [_pv_cached(w) for w in full_context]
-                context_ids = [self.vocab.word2id[w] for w in full_context if w in self.vocab.word2id]
+                context_ids = [self.vocab.word2id.get(w, None) for w in full_context]
                 prev_word = full_context[-1] if full_context else None
                 candidates = self._resonance_candidates(context_ids, all_pv, used_set, prev_word=prev_word)
                 if not candidates and step > 0:
@@ -1894,25 +2070,6 @@ class Generator:
                 self.prompt_field.strength = min(2.0, 0.5 + assoc_conf)
 
             prompt_pv = [self._get_pv_fast(w) for w in prompt_tokens]
-
-            pattern_response = None
-            pattern_intent = intent_result.get('intent', 'STATEMENT')
-            if pattern_intent in self.response_architect.pattern_db:
-                for pattern in self.response_architect.pattern_db[pattern_intent]:
-                    trigger_words = pattern['trigger'].split()
-                    match_count = sum(1 for tw in trigger_words if tw in prompt_raw.split())
-                    if match_count >= len(trigger_words) * 0.5:
-                        pattern_response = pattern['response']
-                        break
-
-            if pattern_response:
-                pattern_words = pattern_response.split()
-                if all(w in self.vocab.word2id for w in pattern_words):
-                    result = ' '.join(pattern_words)
-                    if result:
-                        self.ram.observe(pattern_words)
-                        self.dialogue_memory.update(result, speaker='system')
-                    return result
 
             beams = [prompt_tokens[:]]
             used_sets = [set(prompt_tokens)]
@@ -1986,6 +2143,85 @@ class Generator:
 
         return result
 
+    def _reasoned_generate(self, prompt_tokens, prompt_raw, max_words=12):
+        """توليد استدلالي — تكامل مساري بجاذبية مزدوجة.
+
+        يستخدم PhasePathIntegralReasoner لبناء سلسلة استدلالية
+        من آخر كلمة في prompt نحو goal_concept المستخرج.
+        """
+        if len(prompt_tokens) < 2:
+            return ""
+
+        prompt_pv = [self._get_pv_fast(w) for w in prompt_tokens]
+
+        result = self.reasoner.reason(
+            prompt_tokens=prompt_tokens,
+            prompt_pv=prompt_pv,
+            max_depth=min(8, max_words),
+            beam_width=self.config.get('reasoning', {}).get('beam_width', 10) if self.config else 10,
+        )
+
+        chain = result.get('chain', [])
+        converged = result.get('converged', False)
+        final_sim = result.get('final_similarity', 0.0)
+        path_len = result.get('path_length', 0)
+
+        # سجل معلومات التصحيح
+        logger.info(
+            f"  [Reasoner] done  converged={converged}  "
+            f"final_sim={final_sim:.4f}  path_len={path_len}  "
+            f"chain={chain}"
+        )
+
+        if chain:
+            output = ' '.join(chain)
+            # تسجيل ما بعد التوليد
+            self.ram.observe(chain)
+            if len(chain) >= 2:
+                self.ram.observe_sentence(prompt_tokens + chain)
+            self.dialogue_memory.update(output, speaker="system")
+            # ذاكرة هرمية
+            if hasattr(self, 'hierarchical_memory'):
+                for w in chain:
+                    wid = self.vocab.word2id.get(w)
+                    if wid is not None and wid < len(self._all_pv):
+                        self.hierarchical_memory.add_word(w, self._all_pv[wid], mass=self._dyn_mass(w))
+                if self.hierarchical_memory._phrase_word_count > 0:
+                    self.hierarchical_memory._flush_phrase()
+            # تعزيز طوري
+            pvs_out = [self._get_pv_fast(w) for w in chain if self._get_pv_fast(w) is not None]
+            if pvs_out:
+                self.phase_reinforcement.reinforce_sentence(
+                    [w for w in chain if self.vocab.word2id.get(w) is not None],
+                    pvs_out, reward=0.5)
+            return output
+
+        # Fallback: إذا فشل الاستدلال، حاول التوليد العادي
+        logger.warning("  [Reasoner] fallback — no chain produced, reverting to standard")
+        prompt_pv_for_standard = [self._get_pv_fast(w) for w in prompt_tokens]
+        self.prompt_constraint.set_prompt(prompt_pv_for_standard)
+        beams = [prompt_tokens[:]]
+        used_sets = [set(prompt_tokens)]
+        k_B_cur = self.entropy.k_B
+        beta_cur = self.beta
+        S_cur = 0.0
+        for step in range(max_words):
+            self.current_tau = self.tau_min + (self.tau_max - self.tau_min) * np.exp(-step / max(self.tau_decay, 0.5))
+            new = self._beam_step(beams, used_sets, prompt_pv_for_standard, step=step, total=max_words, k_B_cur=k_B_cur, beta_cur=beta_cur, S=S_cur)
+            if not new:
+                break
+            if new[0][0] < 0.2 and step >= 3:
+                beams = [new[0][1] for b in new] if new else beams
+                break
+            beams = [b[1] for b in new]
+            used_sets = [b[2] for b in new]
+            beam_pvs = [self._get_pv_fast(w) for w in beams[0]]
+            target = self._target_phase(beam_pvs + prompt_pv_for_standard)
+            beam_phase = [p[:self.old_semantic_dim] for p in beam_pvs]
+            S_cur = self.entropy.compute_S(beam_phase, target)
+            self.prompt_field.step()
+        output = beams[0][len(prompt_tokens):]
+        return ' '.join(output) if output else ""
 
     def _code_generate(self, prompt, max_tokens=30):
         """توليد كود Python باستخدام CodeEngine + بوابة نحوية."""
@@ -2013,7 +2249,7 @@ class Generator:
             for branch_score, words, used_set, rhythm_pos in superposition:
                 full_context = collapsed_words + words
                 all_pv = [self._get_pv_fast(w) for w in full_context]
-                context_ids = [self.vocab.word2id[w] for w in full_context if w in self.vocab.word2id]
+                context_ids = [self.vocab.word2id.get(w, None) for w in full_context]
                 prev_word = full_context[-1] if full_context else None
                 candidates = self._resonance_candidates(context_ids, all_pv, used_set, prev_word=prev_word)
                 for w in candidates[:15]:
@@ -2070,7 +2306,7 @@ class Generator:
         for step in range(max_words):
             all_pv = [self._get_pv_fast(w) for w in collapsed_words]
             ctx_masses = [self._dyn_mass(w) for w in collapsed_words]
-            context_ids = [self.vocab.word2id[w] for w in collapsed_words if w in self.vocab.word2id]
+            context_ids = [self.vocab.word2id.get(w, None) for w in collapsed_words]
             prev_word = collapsed_words[-1] if collapsed_words else None
             
             # Application of molecular binder
@@ -2111,7 +2347,7 @@ class Generator:
                 
                 if hasattr(self, 'beamformer') and len(all_pv) > 1:
                     ctx_pvs = all_pv[-10:]
-                    _, _, beam_focus = self.beamformer.beamform(w_pv_creative[:22], ctx_pvs, collapsed_words[-10:])
+                    _, _, beam_focus = self.beamformer.beamform(w_pv_creative[:PHASE_DIM], ctx_pvs, collapsed_words[-10:])
                     repulsion = self.refractory.get_repulsion_field(w_pv_creative)
                     macro_score = self.macro_engine.score_candidate_via_concepts(w_pv_creative, collapsed_words)
                 
@@ -2176,7 +2412,7 @@ class Generator:
                 candidate_pv = pvs[-1]
                 context_words = [str(w) for w in all_words[-11:-1]]
                 ctx_pvs = pvs[-11:-1]
-                _, weights, focus_score = self.beamformer.beamform(candidate_pv[:22], ctx_pvs, context_words)
+                _, weights, focus_score = self.beamformer.beamform(candidate_pv[:PHASE_DIM], ctx_pvs, context_words)
                 beamformer_data = {"candidate": candidate, "context": context_words, "weights": [float(w) for w in weights], "focus_score": float(focus_score)}
             except Exception as e:
                 pass
@@ -2222,8 +2458,8 @@ class Generator:
             try:
                 with open(path, encoding="utf-8") as f:
                     return json.load(f)
-            except Exception:
-                pass
+            except Exception as e:
+                import logging; logging.getLogger('generator').debug(f'benchmark_vocab تحميل فشل: {e}')
         # Default list of words if file doesn't exist
         defaults = [
             "تدفق", "جود", "كرم", "تكرار", "تحليق", "جمود", "حبس", "منع", "بخل", "سقوط",

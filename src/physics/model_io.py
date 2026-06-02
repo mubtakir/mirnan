@@ -13,7 +13,7 @@ model_io — حفظ وتحميل النموذج كملفات Python دينامي
 ملفات K تستخدم base64+zlib لأنها كبيرة وغير مقروءة كـ text.
 ملف vocab.py مقروء بالكامل — يمكن تعديله يدوياً أو برمجياً.
 """
-import os, sys, json, zlib, base64
+import os, sys, json, zlib, base64, ast
 import numpy as np
 from scipy import sparse
 from typing import Optional
@@ -123,7 +123,7 @@ def load():
     """إعادة بناء SyntaxField من البيانات."""
     from src.physics.grammar_field import SyntaxField
     sf = SyntaxField()
-    sf.bigram_cos_mean = {eval(k) if isinstance(k, str) and k.startswith("(") else k: v 
+    sf.bigram_cos_mean = {ast.literal_eval(k) if isinstance(k, str) and k.startswith("(") else k: v 
                           for k, v in BIGRAM_COS_MEAN.items()}
     sf.bigram_count = {eval(k) if isinstance(k, str) and k.startswith("(") else k: v 
                        for k, v in BIGRAM_COUNT.items()}
